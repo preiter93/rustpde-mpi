@@ -101,7 +101,7 @@ dependencies = [
 [[package]]
 name = "build-probe-mpi"
 version = "0.1.1"
-source = "git+https://github.com/preiter93/funspace?branch=main#bd9a2832c291784d422c57389978165be178f3cd"
+source = "git+https://github.com/preiter93/funspace?branch=main#9a0d0c9674f514f339007d9e420cffde80f8834a"
 dependencies = [
  "pkg-config",
 ]
@@ -366,7 +366,7 @@ dependencies = [
 [[package]]
 name = "funspace"
 version = "0.2.3"
-source = "git+https://github.com/preiter93/funspace?branch=main#bd9a2832c291784d422c57389978165be178f3cd"
+source = "git+https://github.com/preiter93/funspace?branch=main#9a0d0c9674f514f339007d9e420cffde80f8834a"
 dependencies = [
  "enum_dispatch",
  "ndarray",
@@ -644,7 +644,7 @@ dependencies = [
 [[package]]
 name = "mpi-custom"
 version = "0.6.0"
-source = "git+https://github.com/preiter93/funspace?branch=main#bd9a2832c291784d422c57389978165be178f3cd"
+source = "git+https://github.com/preiter93/funspace?branch=main#9a0d0c9674f514f339007d9e420cffde80f8834a"
 dependencies = [
  "build-probe-mpi",
  "conv",
@@ -659,7 +659,7 @@ dependencies = [
 [[package]]
 name = "mpi-sys"
 version = "0.2.0"
-source = "git+https://github.com/preiter93/funspace?branch=main#bd9a2832c291784d422c57389978165be178f3cd"
+source = "git+https://github.com/preiter93/funspace?branch=main#9a0d0c9674f514f339007d9e420cffde80f8834a"
 dependencies = [
  "bindgen",
  "build-probe-mpi",
@@ -1054,7 +1054,7 @@ checksum = "f497285884f3fcff424ffc933e56d7cbca511def0c9831a7f9b5f6153e3cc89b"
 [[package]]
 name = "rsmpi-decomp"
 version = "0.1.0"
-source = "git+https://github.com/preiter93/funspace?branch=main#bd9a2832c291784d422c57389978165be178f3cd"
+source = "git+https://github.com/preiter93/funspace?branch=main#9a0d0c9674f514f339007d9e420cffde80f8834a"
 dependencies = [
  "mpi-custom",
  "ndarray",

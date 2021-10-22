@@ -1,6 +1,9 @@
-/// Run example:
-///
-/// cargo mpirun --np 2 --example solve_hholtz_mpi --release
+//! Run example:
+//!
+//! cargo mpirun --np 2 --example solve_hholtz_mpi --release
+//!
+//! Important: Disable obenblas multithreading:
+//! export OPENBLAS_NUM_THREADS=1
 use rustpde::cheb_dirichlet;
 use rustpde::mpi::initialize;
 use rustpde::mpi::solver::hholtz_adi::HholtzAdiMpi;
