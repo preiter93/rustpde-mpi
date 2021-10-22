@@ -3,6 +3,7 @@
 //! Must be updated ...
 #![allow(clippy::module_name_repetitions)]
 pub mod fdma;
+pub mod fdma_par;
 pub mod fdma_tensor;
 pub mod hholtz;
 pub mod hholtz_adi;
@@ -11,10 +12,11 @@ pub mod poisson;
 pub mod tdma;
 pub mod utils;
 pub use fdma::Fdma;
+pub use fdma_par::FdmaPar;
 pub use fdma_tensor::FdmaTensor;
 pub use hholtz::Hholtz;
 pub use hholtz_adi::HholtzAdi;
-pub use matvec::{MatVec, MatVecDot, MatVecFdma};
+pub use matvec::{MatVec, MatVecDot, MatVecFdma, MatVecFdmaPar};
 use ndarray::{Array, ArrayBase, Data, DataMut};
 use num_complex::Complex;
 pub use poisson::Poisson;
@@ -81,6 +83,8 @@ pub enum Solver<T> {
     Tdma(Tdma<T>),
     /// Four-diagonal Solver
     Fdma(Fdma<T>),
+    /// Four-diagonal Solver (Parallel iterator for ndim > 1)
+    FdmaPar(FdmaPar<T>),
 }
 
 /// Intented to solve field equations (limited number of dimensions)
@@ -112,6 +116,7 @@ where
         match self {
             Self::Tdma(ref t) => t.solve(input, output, axis),
             Self::Fdma(ref t) => t.solve(input, output, axis),
+            Self::FdmaPar(ref t) => t.solve(input, output, axis),
         }
     }
 }

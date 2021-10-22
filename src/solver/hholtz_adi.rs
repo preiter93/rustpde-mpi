@@ -19,10 +19,10 @@
 //! banded after multiplication with the pseudoinverse
 //! of D2 (B2). In this case, the second equation is
 //! solved, with A = B2.
-use super::{MatVec, MatVecFdma, Solver, SolverScalar};
+use super::{MatVec, MatVecFdmaPar, Solver, SolverScalar};
 use crate::bases::BaseSpace;
 use crate::field::FieldBase;
-use crate::solver::{Fdma, Solve, SolveReturn};
+use crate::solver::{FdmaPar, Solve, SolveReturn};
 use ndarray::prelude::*;
 use ndarray::{Data, DataMut};
 use std::ops::{Add, Div, Mul};
@@ -52,8 +52,8 @@ impl<const N: usize> HholtzAdi<f64, N> {
             // Matrices and preconditioner
             let (mat_a, mat_b, precond) = field.ingredients_for_hholtz(axis);
             let mat: Array2<f64> = mat_a - mat_b * *ci;
-            let solver_axis = Solver::Fdma(Fdma::from_matrix(&mat));
-            let matvec_axis = precond.map(|x| MatVec::MatVecFdma(MatVecFdma::new(&x)));
+            let solver_axis = Solver::FdmaPar(FdmaPar::from_matrix(&mat));
+            let matvec_axis = precond.map(|x| MatVec::MatVecFdmaPar(MatVecFdmaPar::new(&x)));
 
             solver.push(solver_axis);
             matvec.push(matvec_axis);

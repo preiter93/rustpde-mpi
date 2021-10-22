@@ -1,7 +1,7 @@
+use rustpde::integrate;
 use rustpde::navier::vorticity_from_file;
 use rustpde::navier::Navier2D;
 use rustpde::navier::Navier2DAdjoint;
-use rustpde::integrate;
 use rustpde::Integrate;
 
 fn direct() {
