@@ -1,6 +1,6 @@
 //! Run example:
 //!
-//! cargo mpirun --np 2 --example solve_navier_mpi --release
+//! cargo mpirun --np 2 --example solve_navier_periodic_mpi --release
 //!
 //! Important: Disable obenblas multithreading:
 //! export OPENBLAS_NUM_THREADS=1
@@ -15,10 +15,9 @@ fn main() {
     let (nx, ny) = (129, 129);
     let ra = 1e4;
     let pr = 1.;
-    let adiabatic = true;
     let aspect = 1.0;
     let dt = 0.01;
-    let mut navier = Navier2DMpi::new(&universe, nx, ny, ra, pr, dt, aspect, adiabatic);
+    let mut navier = Navier2DMpi::new_periodic(&universe, nx, ny, ra, pr, dt, aspect);
     // navier.read("restart.h5");
     // navier.reset_time();
     // Set initial conditions

@@ -1,14 +1,15 @@
 //! # Solver for Boussinesq equations (mpi supported)
 //! Default: Rayleigh Benard Convection
 pub mod functions;
+use super::broadcast_scalar;
 use super::solver::hholtz_adi::HholtzAdiMpi;
 use super::solver::poisson::PoissonMpi;
 use super::Communicator;
 use super::Universe;
 use super::{BaseSpaceMpi, Field2Mpi, Space2Mpi};
-use super::broadcast_scalar;
-use crate::bases::BaseR2r;
+use crate::bases::fourier_r2c;
 use crate::bases::{cheb_dirichlet, cheb_dirichlet_bc, cheb_neumann, chebyshev};
+use crate::bases::{BaseR2c, BaseR2r};
 use crate::field::{BaseSpace, ReadField, WriteField};
 use crate::hdf5::{read_scalar_from_hdf5, write_scalar_to_hdf5, Result};
 use crate::mpi::Integrate;
@@ -18,6 +19,7 @@ use crate::solver::Solve;
 use crate::types::Scalar;
 use functions::conv_term;
 use ndarray::{s, Array2};
+use num_complex::Complex;
 use num_traits::Zero;
 use std::collections::HashMap;
 use std::ops::{Div, Mul};
@@ -71,7 +73,7 @@ pub struct Navier2DMpi<'a, T, S> {
 }
 
 type Space2R2r<'a> = Space2Mpi<'a, BaseR2r<f64>, BaseR2r<f64>>;
-// type Space2R2c<'a> = Space2Mpi<'a, BaseR2c<f64>, BaseR2r<f64>>;
+type Space2R2c<'a> = Space2Mpi<'a, BaseR2c<f64>, BaseR2r<f64>>;
 
 /// Implement the ndividual terms of the Navier-Stokes equation
 /// as a trait. This is necessary to support both real and complex
@@ -295,33 +297,6 @@ impl<'a> Navier2DMpi<'_, f64, Space2R2r<'a>>
         navier
     }
 
-    // /// Return field for rayleigh benard
-    // /// type temperature boundary conditions:
-    // ///
-    // /// T = 0.5 at the bottom and T = -0.5
-    // /// at the top
-    // pub fn bc_rbc(nx: usize, ny: usize, universe: &'a Universe) -> Field2Mpi<f64, Space2R2r<'a>> {
-    //     use crate::bases::Transform;
-    //     // Create base and field
-    //     let mut x_base = chebyshev(nx);
-    //     let y_base = cheb_dirichlet_bc(ny);
-    //     let space = Space2Mpi::new(&x_base.clone(), &y_base, universe);
-    //     let mut fieldbc = Field2Mpi::new(&space);
-    //     let mut bc = fieldbc.vhat.to_owned();
-    //
-    //     // Set boundary condition along axis
-    //     bc.slice_mut(s![.., 0]).fill(0.5);
-    //     bc.slice_mut(s![.., 1]).fill(-0.5);
-    //
-    //     // Transform
-    //     x_base.forward_inplace(&bc, &mut fieldbc.vhat, 0);
-    //     fieldbc.backward();
-    //     fieldbc.forward();
-    //     fieldbc.split_physical();
-    //     fieldbc.split_spectral();
-    //     fieldbc
-    // }
-
     /// Return field for rayleigh benard
     /// type temperature boundary conditions:
     ///
@@ -348,7 +323,7 @@ impl<'a> Navier2DMpi<'_, f64, Space2R2r<'a>>
         field_ortho.vhat.assign(&field_bc.to_ortho());
         field_ortho.backward();
         field_ortho.scatter_physical();
-        field_ortho.scatter_physical();
+        field_ortho.scatter_spectral();
         field_ortho
     }
 
@@ -381,136 +356,163 @@ impl<'a> Navier2DMpi<'_, f64, Space2R2r<'a>>
     //     fieldbc
     // }
 }
-//
-// impl Navier2DMpi<Complex<f64>, Space2R2c>
-// //where
-// //    S: BaseSpace<f64, 2, Physical = f64, Spectral = f64>,
-// {
-//     /// Bases: Fourier in x and chebyshev in y
-//     ///
-//     /// Struct must be mutable, to perform the
-//     /// update step, which advances the solution
-//     /// by 1 timestep.
-//     ///
-//     /// # Arguments
-//     ///
-//     /// * `nx,ny` - The number of modes in x and y -direction
-//     ///
-//     /// * `ra,pr` - Rayleigh and Prandtl number
-//     ///
-//     /// * `dt` - Timestep size
-//     ///
-//     /// * `aspect` - Aspect ratio L/H (unity is assumed to be to 2pi)
-//     #[allow(clippy::similar_names)]
-//     pub fn new_periodic(
-//         nx: usize,
-//         ny: usize,
-//         ra: f64,
-//         pr: f64,
-//         dt: f64,
-//         aspect: f64,
-//     ) -> Navier2DMpi<Complex<f64>, Space2R2c> {
-//         // geometry scales
-//         let scale = [aspect, 1.];
-//         // diffusivities
-//         let nu = get_nu(ra, pr, scale[1] * 2.0);
-//         let ka = get_ka(ra, pr, scale[1] * 2.0);
-//         // velocities
-//         let ux = Field2Mpi::new(&Space2::new(&fourier_r2c(nx), &cheb_dirichlet(ny)));
-//         let uy = Field2Mpi::new(&Space2::new(&fourier_r2c(nx), &cheb_dirichlet(ny)));
-//         // temperature
-//         let temp = Field2Mpi::new(&Space2::new(&fourier_r2c(nx), &cheb_dirichlet(ny)));
-//         // pressure
-//         let pres = [
-//             Field2Mpi::new(&Space2::new(&fourier_r2c(nx), &chebyshev(ny))),
-//             Field2Mpi::new(&Space2::new(&fourier_r2c(nx), &cheb_neumann(ny))),
-//         ];
-//         // fields for derivatives
-//         let field = Field2Mpi::new(&Space2::new(&fourier_r2c(nx), &chebyshev(ny)));
-//         // define solver
-//         let solver_ux = SolverField::Hholtz(Hholtz::new(
-//             &ux,
-//             [dt * nu / scale[0].powf(2.), dt * nu / scale[1].powf(2.)],
-//         ));
-//         let solver_uy = SolverField::Hholtz(Hholtz::new(
-//             &uy,
-//             [dt * nu / scale[0].powf(2.), dt * nu / scale[1].powf(2.)],
-//         ));
-//         let solver_temp = SolverField::Hholtz(Hholtz::new(
-//             &temp,
-//             [dt * ka / scale[0].powf(2.), dt * ka / scale[1].powf(2.)],
-//         ));
-//         let solver_pres = SolverField::Poisson(Poisson::new(
-//             &pres[1],
-//             [1. / scale[0].powf(2.), 1. / scale[1].powf(2.)],
-//         ));
-//         let solver = [solver_ux, solver_uy, solver_temp, solver_pres];
-//         let rhs = Array2::zeros(field.vhat.raw_dim());
-//
-//         // Diagnostics
-//         let mut diagnostics = HashMap::new();
-//         diagnostics.insert("time".to_string(), Vec::<f64>::new());
-//         diagnostics.insert("Nu".to_string(), Vec::<f64>::new());
-//         diagnostics.insert("Nuvol".to_string(), Vec::<f64>::new());
-//         diagnostics.insert("Re".to_string(), Vec::<f64>::new());
-//
-//         // Initialize
-//         let mut navier = Navier2DMpi::<Complex<f64>, Space2R2c> {
-//             field,
-//             temp,
-//             ux,
-//             uy,
-//             pres,
-//             solver,
-//             rhs,
-//             fieldbc: None,
-//             nu,
-//             ka,
-//             ra,
-//             pr,
-//             time: 0.0,
-//             dt,
-//             scale,
-//             diagnostics,
-//             write_intervall: None,
-//             solid: None,
-//             dealias: true,
-//         };
-//         navier._scale();
-//         // Boundary condition
-//         navier.set_temp_bc(Self::bc_rbc_periodic(nx, ny));
-//         // Initial condition
-//         // navier.set_velocity(0.2, 2., 1.);
-//         navier.random_disturbance(0.1);
-//         // Return
-//         navier
-//     }
-//
-//     /// Return field for rayleigh benard
-//     /// type temperature boundary conditions:
-//     ///
-//     /// T = 0.5 at the bottom and T = -0.5
-//     /// at the top
-//     pub fn bc_rbc_periodic(nx: usize, ny: usize) -> Field2Mpi<Complex<f64>, Space2R2c> {
-//         use crate::bases::Transform;
-//         // Create base and field
-//         let mut x_base = fourier_r2c(nx);
-//         let y_base = cheb_dirichlet_bc(ny);
-//         let space = Space2::new(&x_base, &y_base);
-//         let mut fieldbc = Field2Mpi::new(&space);
-//         let mut bc = Array2::<f64>::zeros((nx, 2));
-//
-//         // Set boundary condition along axis
-//         bc.slice_mut(s![.., 0]).fill(0.5);
-//         bc.slice_mut(s![.., 1]).fill(-0.5);
-//
-//         // Transform
-//         x_base.forward_inplace(&bc, &mut fieldbc.vhat, 0);
-//         fieldbc.backward();
-//         fieldbc.forward();
-//         fieldbc
-//     }
-// }
+
+impl<'a> Navier2DMpi<'_, Complex<f64>, Space2R2c<'a>>
+//where
+//    S: BaseSpace<f64, 2, Physical = f64, Spectral = f64>,
+{
+    /// Bases: Fourier in x and chebyshev in y
+    ///
+    /// Struct must be mutable, to perform the
+    /// update step, which advances the solution
+    /// by 1 timestep.
+    ///
+    /// # Arguments
+    ///
+    /// * `nx,ny` - The number of modes in x and y -direction
+    ///
+    /// * `ra,pr` - Rayleigh and Prandtl number
+    ///
+    /// * `dt` - Timestep size
+    ///
+    /// * `aspect` - Aspect ratio L/H (unity is assumed to be to 2pi)
+    #[allow(clippy::similar_names)]
+    pub fn new_periodic(
+        universe: &'a Universe,
+        nx: usize,
+        ny: usize,
+        ra: f64,
+        pr: f64,
+        dt: f64,
+        aspect: f64,
+    ) -> Navier2DMpi<Complex<f64>, Space2R2c> {
+        // geometry scales
+        let scale = [aspect, 1.];
+        // diffusivities
+        let nu = get_nu(ra, pr, scale[1] * 2.0);
+        let ka = get_ka(ra, pr, scale[1] * 2.0);
+        // velocities
+        let ux = Field2Mpi::new(&Space2Mpi::new(
+            &fourier_r2c(nx),
+            &cheb_dirichlet(ny),
+            universe,
+        ));
+        let uy = Field2Mpi::new(&Space2Mpi::new(
+            &fourier_r2c(nx),
+            &cheb_dirichlet(ny),
+            universe,
+        ));
+        // temperature
+        let temp = Field2Mpi::new(&Space2Mpi::new(
+            &fourier_r2c(nx),
+            &cheb_dirichlet(ny),
+            universe,
+        ));
+        // pressure
+        let pres = [
+            Field2Mpi::new(&Space2Mpi::new(&fourier_r2c(nx), &chebyshev(ny), universe)),
+            Field2Mpi::new(&Space2Mpi::new(
+                &fourier_r2c(nx),
+                &cheb_neumann(ny),
+                universe,
+            )),
+        ];
+        // fields for derivatives
+        let field = Field2Mpi::new(&Space2Mpi::new(&fourier_r2c(nx), &chebyshev(ny), universe));
+        // define solver
+        let solver_ux = HholtzAdiMpi::new(
+            &ux,
+            [dt * nu / scale[0].powf(2.), dt * nu / scale[1].powf(2.)],
+        );
+        let solver_uy = HholtzAdiMpi::new(
+            &uy,
+            [dt * nu / scale[0].powf(2.), dt * nu / scale[1].powf(2.)],
+        );
+        let solver_temp = HholtzAdiMpi::new(
+            &temp,
+            [dt * ka / scale[0].powf(2.), dt * ka / scale[1].powf(2.)],
+        );
+        let solver_hholtz = [solver_ux, solver_uy, solver_temp];
+        let solver_pres =
+            PoissonMpi::new(&pres[1], [1. / scale[0].powf(2.), 1. / scale[1].powf(2.)]);
+        let rhs = Array2::zeros(field.vhat_x_pen.raw_dim());
+
+        // Diagnostics
+        let mut diagnostics = HashMap::new();
+        diagnostics.insert("time".to_string(), Vec::<f64>::new());
+        diagnostics.insert("Nu".to_string(), Vec::<f64>::new());
+        diagnostics.insert("Nuvol".to_string(), Vec::<f64>::new());
+        diagnostics.insert("Re".to_string(), Vec::<f64>::new());
+
+        // Initialize
+        let mut navier = Navier2DMpi::<Complex<f64>, Space2R2c> {
+            universe,
+            field,
+            temp,
+            ux,
+            uy,
+            pres,
+            solver_hholtz,
+            solver_pres,
+            rhs,
+            fieldbc: None,
+            nu,
+            ka,
+            ra,
+            pr,
+            time: 0.0,
+            dt,
+            scale,
+            diagnostics,
+            write_intervall: None,
+            solid: None,
+            dealias: true,
+        };
+        navier._scale();
+        // Boundary condition
+        navier.set_temp_bc(Self::bc_rbc_periodic(nx, ny, universe));
+        // Initial condition
+        // navier.set_velocity(0.2, 2., 1.);
+        navier.random_disturbance(0.1);
+        // Return
+        navier
+    }
+
+    /// Return field for rayleigh benard
+    /// type temperature boundary conditions:
+    ///
+    /// T = 0.5 at the bottom and T = -0.5
+    /// at the top
+    pub fn bc_rbc_periodic(
+        nx: usize,
+        ny: usize,
+        universe: &'a Universe,
+    ) -> Field2Mpi<Complex<f64>, Space2R2c<'a>> {
+        use crate::bases::Transform;
+        // Create base and field
+        let mut x_base = fourier_r2c(nx);
+        let y_base = cheb_dirichlet_bc(ny);
+
+        let mut field_bc = Field2Mpi::new(&Space2Mpi::new(&x_base.clone(), &y_base, universe));
+        let mut field_ortho =
+            Field2Mpi::new(&Space2Mpi::new(&fourier_r2c(nx), &chebyshev(ny), universe));
+
+        // Set boundary condition along axis
+        let mut bc = Array2::<f64>::zeros((nx, 2));
+        bc.slice_mut(s![.., 0]).fill(0.5);
+        bc.slice_mut(s![.., 1]).fill(-0.5);
+        x_base.forward_inplace(&bc, &mut field_bc.vhat, 0);
+        field_bc.backward();
+        field_bc.forward();
+
+        // BC base to orthogonal base
+        field_ortho.vhat.assign(&field_bc.to_ortho());
+        field_ortho.backward();
+        field_ortho.scatter_physical();
+        field_ortho.scatter_spectral();
+        field_ortho
+    }
+}
 
 impl<T, S> Navier2DMpi<'_, T, S>
 where
@@ -767,7 +769,7 @@ macro_rules! impl_navier_convection {
 }
 
 impl_navier_convection!(f64);
-// impl_navier_convection!(Complex<f64>);
+impl_navier_convection!(Complex<f64>);
 
 macro_rules! impl_integrate_for_navier {
     ($s: ty, $norm: ident) => {
@@ -888,10 +890,18 @@ macro_rules! impl_integrate_for_navier {
     };
 }
 impl_integrate_for_navier!(f64, norm_l2_f64);
-// impl_integrate_for_navier!(Complex<f64>, norm_l2_c64);
+impl_integrate_for_navier!(Complex<f64>, norm_l2_c64);
 
 fn norm_l2_f64(array: &Array2<f64>) -> f64 {
     array.iter().map(|x| x.powi(2)).sum::<f64>().sqrt()
+}
+
+fn norm_l2_c64(array: &Array2<Complex<f64>>) -> f64 {
+    array
+        .iter()
+        .map(|x| x.re.powi(2) + x.im.powi(2))
+        .sum::<f64>()
+        .sqrt()
 }
 
 impl<T, S> Navier2DMpi<'_, T, S>
@@ -1084,7 +1094,7 @@ macro_rules! impl_read_write_navier {
 }
 
 impl_read_write_navier!(f64);
-// impl_read_write_navier!(Complex<f64>);
+impl_read_write_navier!(Complex<f64>);
 
 /// Dealias field (2/3 rule)
 pub fn dealias<S, T2>(field: &mut Field2Mpi<T2, S>)
