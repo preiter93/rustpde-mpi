@@ -1,0 +1,15 @@
+[package]
+name = "particle_tracer"
+version = "0.1.0"
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+ndarray = { version = "0.15", features = ["rayon"] }
+hdf5-interface = { git = "https://github.com/preiter93/hdf5-interface", branch = "master" }
+rand = "0.8.4"
+
+[lib]
+name = "particle_tracer"
+path = "src/lib.rs"
