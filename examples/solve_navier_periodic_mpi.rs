@@ -12,11 +12,11 @@ fn main() {
     // mpi
     let universe = initialize().unwrap();
     // Parameters
-    let (nx, ny) = (128, 65);
+    let (nx, ny) = (264, 129);
     let ra = 1e4;
     let pr = 1.;
     let aspect = 1.0;
-    let dt = 0.01;
+    let dt = 0.001;
     let mut navier = Navier2DMpi::new_periodic(&universe, nx, ny, ra, pr, dt, aspect);
     // navier.read("restart.h5");
     // navier.reset_time();

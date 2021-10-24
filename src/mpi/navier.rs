@@ -1057,7 +1057,7 @@ macro_rules! impl_read_write_navier {
             pub fn write(&mut self, filename: &str) {
                 let result = self.write_return_result(filename);
                 match result {
-                    Ok(_) => println!(" ==> {:?} {:?}", filename, self.nrank()),
+                    Ok(_) => println!(" ==> {:?}", filename),
                     Err(_) => println!("Error while writing file {:?}.", filename),
                 }
             }

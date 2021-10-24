@@ -3,7 +3,7 @@ import h5py
 import glob
 import re
 import matplotlib.pyplot as plt
-from utils.plot_utils import plot_quiver
+from utils.plot_utils import plot_contour
 import os.path
 import ffmpeg
 
@@ -50,7 +50,7 @@ for i, f in enumerate(fname[i0:i9:step]):
         y = np.array(f["y"])
 
     print("Plot {:}".format(filename))
-    fig, ax = plot_quiver(x, y, t, u, v, return_fig=True)
+    fig, ax = plot_contour(x, y, t, u, v, return_fig=True)
     fig.savefig(figname)
     plt.close("all")
 
