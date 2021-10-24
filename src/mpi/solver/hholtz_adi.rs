@@ -72,7 +72,7 @@ where
 }
 
 #[allow(unused_variables)]
-impl<T, S, A> Solve<A, ndarray::Ix2> for HholtzAdiMpi<T, S, 2>
+impl<T, T2, S, A> Solve<A, ndarray::Ix2> for HholtzAdiMpi<T, S, 2>
 where
     T: SolverScalar,
     A: SolverScalar
@@ -81,7 +81,7 @@ where
         + Add<T, Output = A>
         + From<T>
         + Equivalence,
-    S: BaseSpace<f64, 2, Physical = f64, Spectral = T> + BaseSpaceMpi<f64, 2>,
+    S: BaseSpace<f64, 2, Physical = f64, Spectral = T2> + BaseSpaceMpi<f64, 2>,
 {
     /// # Example
     fn solve<S1, S2>(

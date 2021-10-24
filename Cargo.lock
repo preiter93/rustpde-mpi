@@ -101,7 +101,7 @@ dependencies = [
 [[package]]
 name = "build-probe-mpi"
 version = "0.1.1"
-source = "git+https://github.com/preiter93/funspace?branch=main#9a0d0c9674f514f339007d9e420cffde80f8834a"
+source = "git+https://github.com/preiter93/funspace?branch=main#64baef673e12a1b97f7e5bd18469e1a70341a89b"
 dependencies = [
  "pkg-config",
 ]
@@ -366,7 +366,7 @@ dependencies = [
 [[package]]
 name = "funspace"
 version = "0.2.3"
-source = "git+https://github.com/preiter93/funspace?branch=main#9a0d0c9674f514f339007d9e420cffde80f8834a"
+source = "git+https://github.com/preiter93/funspace?branch=main#64baef673e12a1b97f7e5bd18469e1a70341a89b"
 dependencies = [
  "enum_dispatch",
  "ndarray",
@@ -395,9 +395,9 @@ checksum = "9b919933a397b79c37e33b77bb2aa3dc8eb6e165ad809e58ff75bc7db2e34574"
 
 [[package]]
 name = "half"
-version = "1.8.1"
+version = "1.8.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3bd566f08830dd1fa75b2a5f1d8def8336de7f08b2692a9a71efbe7188aea36f"
+checksum = "eabb4a44450da02c90444cf74558da904edde8fb4e9035a9a6a4e15445af0bd7"
 
 [[package]]
 name = "hdf5"
@@ -559,9 +559,9 @@ checksum = "830d08ce1d1d941e6b30645f1a0eb5643013d835ce3779a5fc208261dbe10f55"
 
 [[package]]
 name = "libc"
-version = "0.2.104"
+version = "0.2.105"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7b2f96d100e1cf1929e7719b7edb3b90ab5298072638fccd77be9ce942ecdfce"
+checksum = "869d572136620d55835903746bcb5cdc54cb2851fd0aeec53220b4bb65ef3013"
 
 [[package]]
 name = "libffi"
@@ -644,7 +644,7 @@ dependencies = [
 [[package]]
 name = "mpi-custom"
 version = "0.6.0"
-source = "git+https://github.com/preiter93/funspace?branch=main#9a0d0c9674f514f339007d9e420cffde80f8834a"
+source = "git+https://github.com/preiter93/funspace?branch=main#64baef673e12a1b97f7e5bd18469e1a70341a89b"
 dependencies = [
  "build-probe-mpi",
  "conv",
@@ -659,7 +659,7 @@ dependencies = [
 [[package]]
 name = "mpi-sys"
 version = "0.2.0"
-source = "git+https://github.com/preiter93/funspace?branch=main#9a0d0c9674f514f339007d9e420cffde80f8834a"
+source = "git+https://github.com/preiter93/funspace?branch=main#64baef673e12a1b97f7e5bd18469e1a70341a89b"
 dependencies = [
  "bindgen",
  "build-probe-mpi",
@@ -848,9 +848,9 @@ checksum = "19b17cddbe7ec3f8bc800887bab5e717348c95ea2ca0b1bf0837fb964dc67099"
 
 [[package]]
 name = "pkg-config"
-version = "0.3.20"
+version = "0.3.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7c9b1041b4387893b91ee6746cddfc28516aff326a3519fb2adf820932c5e6cb"
+checksum = "10e2fcbb64ecbe64c8e040a386c3104d384583af58b956d870aaaf229df6e66d"
 
 [[package]]
 name = "plotters"
@@ -1054,7 +1054,7 @@ checksum = "f497285884f3fcff424ffc933e56d7cbca511def0c9831a7f9b5f6153e3cc89b"
 [[package]]
 name = "rsmpi-decomp"
 version = "0.1.0"
-source = "git+https://github.com/preiter93/funspace?branch=main#9a0d0c9674f514f339007d9e420cffde80f8834a"
+source = "git+https://github.com/preiter93/funspace?branch=main#64baef673e12a1b97f7e5bd18469e1a70341a89b"
 dependencies = [
  "mpi-custom",
  "ndarray",

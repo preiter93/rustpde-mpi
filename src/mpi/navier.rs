@@ -596,9 +596,9 @@ macro_rules! impl_navier_convection {
                 // -> spectral space
                 self.field.v_y_pen.assign(&conv);
                 self.field.forward_mpi();
-                // if self.dealias {
-                //     dealias(&mut self.field);
-                // }
+                if self.dealias {
+                    dealias(&mut self.field);
+                }
                 self.field.vhat_x_pen.to_owned()
             }
 
@@ -620,9 +620,9 @@ macro_rules! impl_navier_convection {
                 // -> spectral space
                 self.field.v_y_pen.assign(&conv);
                 self.field.forward_mpi();
-                // if self.dealias {
-                //     dealias(&mut self.field);
-                // }
+                if self.dealias {
+                    dealias(&mut self.field);
+                }
                 self.field.vhat_x_pen.to_owned()
             }
 
@@ -644,9 +644,9 @@ macro_rules! impl_navier_convection {
                 // -> spectral space
                 self.field.v_y_pen.assign(&conv);
                 self.field.forward_mpi();
-                // if self.dealias {
-                //     dealias(&mut self.field);
-                // }
+                if self.dealias {
+                    dealias(&mut self.field);
+                }
                 self.field.vhat_x_pen.to_owned()
             }
 
@@ -1106,8 +1106,18 @@ where
     let zero = T2::zero();
     let n_x: usize = field.vhat.shape()[0] * 2 / 3;
     let n_y: usize = field.vhat.shape()[1] * 2 / 3;
-    field.vhat.slice_mut(s![n_x.., ..]).fill(zero);
-    field.vhat.slice_mut(s![.., n_y..]).fill(zero);
+    // x dim
+    field.vhat_x_pen.slice_mut(s![n_x.., ..]).fill(zero);
+    // y dim is broken
+    let dcp = field.space.get_decomp_from_global_shape(field.vhat.shape());
+    if n_y < dcp.x_pencil.en[1] {
+        let yst = if n_y > dcp.x_pencil.st[1] {
+            n_y - dcp.x_pencil.st[1]
+        } else {
+            0
+        };
+        field.vhat_x_pen.slice_mut(s![.., yst..]).fill(zero);
+    }
 }
 
 /// Construct field f(x,y) = amp \* sin(pi\*m)cos(pi\*n)

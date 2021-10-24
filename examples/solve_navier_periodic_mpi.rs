@@ -12,7 +12,7 @@ fn main() {
     // mpi
     let universe = initialize().unwrap();
     // Parameters
-    let (nx, ny) = (129, 129);
+    let (nx, ny) = (128, 65);
     let ra = 1e4;
     let pr = 1.;
     let aspect = 1.0;

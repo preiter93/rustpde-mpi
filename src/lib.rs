@@ -5,6 +5,10 @@
 //! - cargo >= v1.49
 //! - `hdf5` (sudo apt-get install -y libhdf5-dev)
 //!
+//! When the mpi feature is chosen, you also need access to
+//! - mpi installation
+//! - libclang
+//!
 //! # Details
 //!
 //! This library is intended for simulation softwares which solve the
@@ -73,20 +77,16 @@
 //! ## Postprocess the output
 //!
 //! `rustpde` contains a `python` folder with some scripts.
-//! If you have run the above example, and you specified
-//! to save snapshots ( replace *None* with Some(1.) or any
-//! other value), you will see `hdf5` in the `data` folder.
+//! If you have run the above example and specified
+//! to save snapshots, you will see `hdf5` files in the `data` folder.
 //!
-//! You can create an animation with python's matplotlib by typing
-//!
-//! `python3 python/anim2d.py`
-//!
-//! Or just plot a single snapshot
+//! Plot a single snapshot via
 //!
 //! `python3 python/plot2d.py`
 //!
-//! Provided python has all librarys installed, you should now
-//! see an animation.
+//! or create an animation
+//!
+//! `python3 python/anim2d.py`
 //!
 //! ### Paraview
 //!
