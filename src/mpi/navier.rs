@@ -327,6 +327,45 @@ impl<'a> Navier2DMpi<'_, f64, Space2R2r<'a>>
         field_ortho
     }
 
+    /// Return field for zero sidewall boundary
+    /// condition with smooth transfer function
+    /// to T = 0.5 at the bottom and T = -0.5
+    /// at the top
+    ///
+    /// # Arguments
+    ///
+    /// * `k` - Transition parameter (larger means smoother)
+    pub fn bc_zero(
+        nx: usize,
+        ny: usize,
+        k: f64,
+        universe: &'a Universe,
+    ) -> Field2Mpi<f64, Space2R2r<'a>> {
+        use crate::bases::Transform;
+        use crate::navier::navier::transfer_function;
+        // Create base and field
+        let x_base = cheb_dirichlet_bc(ny);
+        let mut y_base = chebyshev(nx);
+        let mut field_bc = Field2Mpi::new(&Space2Mpi::new(&x_base.clone(), &y_base, universe));
+        let mut field_ortho =
+            Field2Mpi::new(&Space2Mpi::new(&chebyshev(nx), &chebyshev(ny), universe));
+        // Set boundary condition along axis
+        let transfer = transfer_function(&field_bc.x[1], 0.5, 0., -0.5, k);
+        let mut bc = field_bc.vhat.to_owned();
+        bc.slice_mut(s![0, ..]).assign(&transfer);
+        bc.slice_mut(s![1, ..]).assign(&transfer);
+        y_base.forward_inplace(&bc, &mut field_bc.vhat, 1);
+        field_bc.backward();
+        field_bc.forward();
+
+        // BC base to orthogonal base
+        field_ortho.vhat.assign(&field_bc.to_ortho());
+        field_ortho.backward();
+        field_ortho.scatter_physical();
+        field_ortho.scatter_spectral();
+        field_ortho
+    }
+
     // /// Return field for zero sidewall boundary
     // /// condition with smooth transfer function
     // /// to T = 0.5 at the bottom and T = -0.5
