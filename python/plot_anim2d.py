@@ -50,7 +50,7 @@ for i, f in enumerate(fname[i0:i9:step]):
         y = np.array(f["y"])
 
     print("Plot {:}".format(filename))
-    fig, ax = plot_contour(x, y, t, u, v, return_fig=True)
+    fig, ax = plot_contour(x, y, t, return_fig=True)
     fig.savefig(figname, dpi=200, bbox_inches="tight")
     plt.close("all")
 
