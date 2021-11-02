@@ -1062,7 +1062,7 @@ where
 }
 
 /// Transfer function for zero sidewall boundary condition
-fn transfer_function(x: &Array1<f64>, v_l: f64, v_m: f64, v_r: f64, k: f64) -> Array1<f64> {
+pub fn transfer_function(x: &Array1<f64>, v_l: f64, v_m: f64, v_r: f64, k: f64) -> Array1<f64> {
     let mut result = Array1::zeros(x.raw_dim());
     let length = x[x.len() - 1] - x[0];
     for (i, xi) in x.iter().enumerate() {
