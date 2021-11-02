@@ -4,6 +4,7 @@ from utils.colors import *
 
 SETTINGS = {
     "cmap": "gfcmap",
+    "dpi": 200,
 }
 
 def _calculate_streamfunction(x,y,u,v):
@@ -27,12 +28,12 @@ def _calculate_streamfunction(x,y,u,v):
 
     return psi
 
-def plot_contour(x, y, t, u, v, skip=None, return_fig=False):
+def plot_contour(x, y, t, skip=None, return_fig=False):
     if SETTINGS["cmap"] == "gfcmap":
         set_gfcmap()
     xx, yy = np.meshgrid(x,y,indexing="ij")
 
-    fig, ax = plt.subplots()
+    fig, ax = plt.subplots(dpi=SETTINGS["dpi"])
     ax.contourf(
         xx, yy, t, levels=np.linspace(t.min(), t.max(), 101), cmap=SETTINGS["cmap"]
     )
@@ -108,7 +109,7 @@ def plot_streamplot(x, y, t, u, v, return_fig=False):
     vi = f(yi, xi)
 
     speed = np.sqrt(ui*ui + vi*vi)
-    lw = 0.8 * speed.T / np.abs(speed).max()
+    lw = 1.8 * speed.T / np.abs(speed).max()
     ax.streamplot(xi, yi, ui.T, vi.T, density=0.75, color="k", linewidth=lw)
     if return_fig:
         return fig, ax
