@@ -35,7 +35,7 @@ def plot_contour(x, y, t, skip=None, return_fig=False):
 
     fig, ax = plt.subplots(dpi=SETTINGS["dpi"])
     ax.contourf(
-        xx, yy, t, levels=np.linspace(t.min(), t.max(), 101), cmap=SETTINGS["cmap"]
+        xx, yy, t, levels=np.linspace(t.min(), t.max(), 201), cmap=SETTINGS["cmap"]
     )
     ax.set_aspect(1)
     ax.set_xticks([])
@@ -54,7 +54,7 @@ def plot_quiver(x, y, t, u, v, skip=None, return_fig=False):
 
     fig, ax = plt.subplots()
     ax.contourf(
-        xx, yy, t, levels=np.linspace(t.min(), t.max(), 101), cmap=SETTINGS["cmap"]
+        xx, yy, t, levels=np.linspace(t.min(), t.max(), 201), cmap=SETTINGS["cmap"]
     )
     ax.set_aspect(1)
     ax.set_xticks([])
@@ -125,7 +125,7 @@ def plot_streamfunction(x, y, t, u, v, return_fig=False):
 
     fig, ax = plt.subplots()
     ax.contourf(
-        xx, yy, t, levels=np.linspace(t.min(), t.max(), 101), cmap=SETTINGS["cmap"]
+        xx, yy, t, levels=np.linspace(t.min(), t.max(), 201), cmap=SETTINGS["cmap"]
     )
     ax.set_aspect(1)
     ax.set_xticks([])
