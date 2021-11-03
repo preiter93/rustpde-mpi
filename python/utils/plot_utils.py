@@ -79,7 +79,7 @@ def plot_quiver(x, y, t, u, v, skip=None, return_fig=False):
         return fig, ax
     plt.show()
 
-def plot_streamplot(x, y, t, u, v, return_fig=False):
+def plot_streamplot(x, y, t, u, v, return_fig=False, cbar=False):
     from scipy import interpolate
     if SETTINGS["cmap"] == "gfcmap":
         set_gfcmap()
@@ -90,7 +90,7 @@ def plot_streamplot(x, y, t, u, v, return_fig=False):
     fig, ax = plt.subplots()
     tmax = np.amax(np.abs(t))
     tmin = -tmax
-    ax.contourf(
+    cs = ax.contourf(
         xx, yy, t, levels=np.linspace(tmin, tmax, 401), cmap=SETTINGS["cmap"]
     )
     ax.set_aspect(1)
@@ -111,6 +111,8 @@ def plot_streamplot(x, y, t, u, v, return_fig=False):
     speed = np.sqrt(ui*ui + vi*vi)
     lw = 1.8 * speed.T / np.abs(speed).max()
     ax.streamplot(xi, yi, ui.T, vi.T, density=0.75, color="k", linewidth=lw)
+    if cbar:
+        fig.colorbar(cs)
     if return_fig:
         return fig, ax
     plt.show()

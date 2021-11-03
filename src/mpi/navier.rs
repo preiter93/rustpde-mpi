@@ -1,6 +1,7 @@
 //! # Solver for Boussinesq equations (mpi supported)
 //! Default: Rayleigh Benard Convection
 pub mod functions;
+pub mod statistics;
 use super::broadcast_scalar;
 use super::solver::hholtz_adi::HholtzAdiMpi;
 use super::solver::poisson::PoissonMpi;
@@ -21,6 +22,7 @@ use functions::conv_term;
 use ndarray::{s, Array2};
 use num_complex::Complex;
 use num_traits::Zero;
+use statistics::Statistics;
 use std::collections::HashMap;
 use std::ops::{Div, Mul};
 
@@ -30,7 +32,7 @@ pub struct Navier2DMpi<'a, T, S> {
     /// Mpi universe
     universe: &'a Universe,
     /// Field for derivatives and transforms
-    field: Field2Mpi<T, S>,
+    pub field: Field2Mpi<T, S>,
     /// Temperature
     pub temp: Field2Mpi<T, S>,
     /// Horizontal Velocity
@@ -48,9 +50,9 @@ pub struct Navier2DMpi<'a, T, S> {
     /// Field for temperature boundary condition
     pub fieldbc: Option<Field2Mpi<T, S>>,
     /// Viscosity
-    nu: f64,
+    pub nu: f64,
     /// Thermal diffusivity
-    ka: f64,
+    pub ka: f64,
     /// Rayleigh number
     pub ra: f64,
     /// Prandtl number
@@ -70,6 +72,8 @@ pub struct Navier2DMpi<'a, T, S> {
     pub solid: Option<[Array2<f64>; 2]>,
     /// Set true and the fields will be dealiased
     pub dealias: bool,
+    /// If set, collect statistics
+    pub statistics: Option<Statistics<T, S>>,
 }
 
 type Space2R2r<'a> = Space2Mpi<'a, BaseR2r<f64>, BaseR2r<f64>>;
@@ -286,6 +290,7 @@ impl<'a> Navier2DMpi<'_, f64, Space2R2r<'a>>
             write_intervall: None,
             solid: None,
             dealias: true,
+            statistics: None,
         };
         navier._scale();
         // Boundary condition
@@ -506,6 +511,7 @@ impl<'a> Navier2DMpi<'_, Complex<f64>, Space2R2c<'a>>
             write_intervall: None,
             solid: None,
             dealias: true,
+            statistics: None,
         };
         navier._scale();
         // Boundary condition
@@ -872,6 +878,29 @@ macro_rules! impl_integrate_for_navier {
                     } else {
                         self.write(&fname);
                     }
+
+                    // Write statistics
+                    let statname = "data/statistics.nc";
+                    if let Some(ref mut statistics) = self.statistics {
+                        // Update
+                        if (self.time % &statistics.save_stat) < self.dt / 2.
+                            || (self.time % &statistics.save_stat) > &statistics.save_stat - self.dt / 2.
+                        {
+                            let that = if let Some(x) = &self.fieldbc {
+                                (&self.temp.to_ortho() + &x.to_ortho()).to_owned()
+                            } else {
+                                self.temp.to_ortho()
+                            };
+                            statistics.update(&that, &self.ux.to_ortho(), &self.uy.to_ortho(), self.time);
+                        }
+                        // Write
+                        if (self.time % &statistics.write_stat) < self.dt / 2.
+                            || (self.time % &statistics.write_stat) > &statistics.write_stat - self.dt / 2.
+                        {
+                            statistics.write(&statname);
+                        }
+                    }
+
 
                     // I/O
                     let div = self.divergence_full_field();
