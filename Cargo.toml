@@ -15,7 +15,7 @@ num-complex = "0.4"
 hdf5-interface = { git = "https://github.com/preiter93/hdf5-interface", version = "0.1.0"}
 # hdf5-interface = { path = "hdf5-interface" }
 # funspace = "0.2"
-funspace = { git = "https://github.com/preiter93/funspace", branch = "main", features = ["mpi"] }
+funspace = { git = "https://github.com/preiter93/funspace-mpi", tag = "v0.2.3", features = ["mpi"] }
 #funspace = { path = "funspace" }
 
 [dev-dependencies]
