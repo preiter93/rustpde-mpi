@@ -628,16 +628,32 @@ macro_rules! impl_navier_convection {
                     conv += &conv_term(field, &mut self.field, ux, [1, 0], Some(self.scale));
                     conv += &conv_term(field, &mut self.field, uy, [0, 1], Some(self.scale));
                 }
-                // // + solid interaction
-                // if let Some(solid) = &self.solid {
-                //     let eta = 1e-2;
-                //     self.temp.backward();
-                //     let damp = self.fieldbc.as_ref().map_or_else(
-                //         || -1. / eta * &solid[0] * (&self.temp.v - &solid[1]),
-                //         |field| -1. / eta * &solid[0] * &(&self.temp.v + &field.v - &solid[1]),
-                //     );
-                //     conv -= &damp;
-                // }
+                // + solid interaction
+                if let Some(solid) = &self.solid {
+                    let eta = 1e-2;
+                    self.temp.backward_mpi();
+                    let dcp = self
+                        .field
+                        .space
+                        .get_decomp_from_global_shape(self.field.v.shape());
+                    let damp = self.fieldbc.as_ref().map_or_else(
+                        || {
+                            -1. / eta
+                                * &solid[0].slice(s![dcp.y_pencil.st[0]..=dcp.y_pencil.en[0], ..])
+                                * (&self.temp.v_y_pen
+                                    - &solid[1]
+                                        .slice(s![dcp.y_pencil.st[0]..=dcp.y_pencil.en[0], ..]))
+                        },
+                        |field| {
+                            -1. / eta
+                                * &solid[0].slice(s![dcp.y_pencil.st[0]..=dcp.y_pencil.en[0], ..])
+                                * &(&self.temp.v_y_pen + &field.v_y_pen
+                                    - &solid[1]
+                                        .slice(s![dcp.y_pencil.st[0]..=dcp.y_pencil.en[0], ..]))
+                        },
+                    );
+                    conv -= &damp;
+                }
                 // -> spectral space
                 self.field.v_y_pen.assign(&conv);
                 self.field.forward_mpi();
@@ -656,12 +672,18 @@ macro_rules! impl_navier_convection {
                 // + ux * dudx + uy * dudy
                 let mut conv = conv_term(&self.ux, &mut self.field, ux, [1, 0], Some(self.scale));
                 conv += &conv_term(&self.ux, &mut self.field, uy, [0, 1], Some(self.scale));
-                // // + solid interaction
-                // if let Some(solid) = &self.solid {
-                //     let eta = 1e-2;
-                //     let damp = -1. / eta * &solid[0] * ux;
-                //     conv -= &damp;
-                // }
+                // + solid interaction
+                if let Some(solid) = &self.solid {
+                    let eta = 1e-2;
+                    let dcp = self
+                        .field
+                        .space
+                        .get_decomp_from_global_shape(self.field.v.shape());
+                    let damp = -1. / eta
+                        * &solid[0].slice(s![dcp.y_pencil.st[0]..=dcp.y_pencil.en[0], ..])
+                        * ux;
+                    conv -= &damp;
+                }
                 // -> spectral space
                 self.field.v_y_pen.assign(&conv);
                 self.field.forward_mpi();
@@ -680,12 +702,18 @@ macro_rules! impl_navier_convection {
                 // + ux * dudx + uy * dudy
                 let mut conv = conv_term(&self.uy, &mut self.field, ux, [1, 0], Some(self.scale));
                 conv += &conv_term(&self.uy, &mut self.field, uy, [0, 1], Some(self.scale));
-                // // + solid interaction
-                // if let Some(solid) = &self.solid {
-                //     let eta = 1e-2;
-                //     let damp = -1. / eta * &solid[0] * uy;
-                //     conv -= &damp;
-                // }
+                // + solid interaction
+                if let Some(solid) = &self.solid {
+                    let eta = 1e-2;
+                    let dcp = self
+                        .field
+                        .space
+                        .get_decomp_from_global_shape(self.field.v.shape());
+                    let damp = -1. / eta
+                        * &solid[0].slice(s![dcp.y_pencil.st[0]..=dcp.y_pencil.en[0], ..])
+                        * uy;
+                    conv -= &damp;
+                }
                 // -> spectral space
                 self.field.v_y_pen.assign(&conv);
                 self.field.forward_mpi();
@@ -1096,6 +1124,20 @@ where
         self.uy.scatter_spectral();
         self.pres[0].scatter_spectral();
     }
+
+    // /// Add solid obstacle.
+    // /// Input array must be the full mask+value in physical space,
+    // /// the decomposition is done internally
+    // pub fn add_solid(&mut self, solid: [Array2<f64>; 2]) {
+    //     // y dim is broken in physical space
+    //     self.field.v.assign(&solid[0]);
+    //     self.field.scatter_physical();
+    //     let mask = self.field.v_y_pen.clone();
+    //     self.field.v.assign(&solid[1]);
+    //     self.field.scatter_physical();
+    //     let value = self.field.v_y_pen.clone();
+    //     self.solid = Some([mask, value]);
+    // }
 }
 
 macro_rules! impl_read_write_navier {

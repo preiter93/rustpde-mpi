@@ -83,8 +83,8 @@ def plot_streamplot(x, y, t, u, v, return_fig=False, cbar=False):
     from scipy import interpolate
     if SETTINGS["cmap"] == "gfcmap":
         set_gfcmap()
-    x = x-x.min()
-    y = y-y.min()
+    x = x#-x.min()
+    y = y#-y.min()
     xx, yy = np.meshgrid(x,y,indexing="ij")
 
     fig, ax = plt.subplots()
@@ -121,8 +121,8 @@ def plot_streamfunction(x, y, t, u, v, return_fig=False):
     from scipy import interpolate
     if SETTINGS["cmap"] == "gfcmap":
         set_gfcmap()
-    x = x-x.min()
-    y = y-y.min()
+    x = x#-x.min()
+    y = y#-y.min()
     xx, yy = np.meshgrid(x,y,indexing="ij")
 
     fig, ax = plt.subplots()

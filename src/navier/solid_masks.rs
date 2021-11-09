@@ -55,6 +55,27 @@ pub fn solid_cylinder_inner(
     [mask, value]
 }
 
+/// Return mask for solid rectangle
+pub fn solid_rectangle(
+    x: &Array1<f64>,
+    y: &Array1<f64>,
+    x0: f64,
+    y0: f64,
+    dx: f64,
+    dy: f64,
+) -> [Array2<f64>; 2] {
+    let mut mask = Array2::<f64>::zeros((x.len(), y.len()));
+    for (i, xi) in x.iter().enumerate() {
+        for (j, yi) in y.iter().enumerate() {
+            if dx > (xi - x0).abs() && dy > (yi - y0).abs() {
+                mask[[i, j]] = 1.0;
+            }
+        }
+    }
+    let value = Array2::<f64>::zeros(mask.raw_dim());
+    [mask, value]
+}
+
 /// Return mask for sinusoidal roughness elements
 pub fn solid_roughness_sinusoid(
     x: &Array1<f64>,
