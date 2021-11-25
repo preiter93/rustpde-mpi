@@ -7,6 +7,17 @@
 - cargo >= v1.49
 - `hdf5` (sudo apt-get install -y libhdf5-dev)
 
+This is the mpi version of `rustpde`. The following additional
+dependencies are required:
+
+- mpi installation
+- libclang
+
+## Important
+
+OpenBlas's multithreading conflicts with internal multithreading.
+Turn it off for better performance:
+
 ## Details
 
 This library is intended for simulation softwares which solve the
@@ -30,65 +41,64 @@ see [`navier::navier`]
 see [`navier::navier_adjoint`]
 
 ## Example
-Solve 2-D Rayleigh Benard Convection ( Run with `cargo run --release` )
+Solve 2-D Rayleigh Benard Convection ( Run with `cargo mpirun --np 2 --bin rustpde` )
 ```rust
-use rustpde::integrate;
-use rustpde::navier::Navier2D;
-use rustpde::Integrate;
+use rustpde::mpi::initialize;
+use rustpde::mpi::integrate;
+use rustpde::mpi::navier::Navier2DMpi;
 
 fn main() {
+	// mpi
+    let universe = initialize().unwrap();
     // Parameters
-    let (nx, ny) = (64, 64);
-    let ra = 1e5;
+    let (nx, ny) = (65, 65);
+    let ra = 1e4;
     let pr = 1.;
     let adiabatic = true;
     let aspect = 1.0;
-    let dt = 0.02;
-    let mut navier = Navier2D::new(nx, ny, ra, pr, dt, aspect, adiabatic);
-    // Set initial conditions
-    navier.set_velocity(0.2, 1., 1.);
-    // // Want to restart?
-    // navier.read("data/flow100.000.h5");
-    // Write first field
-    navier.callback();
-    integrate(&mut navier, 100., Some(1.0));
+    let dt = 0.01;
+    let mut navier = Navier2DMpi::new(&universe, nx, ny, ra, pr, dt, aspect, adiabatic);
+    navier.write_intervall = Some(1.0);
+    navier.random_disturbance(1e-4);
+    integrate(&mut navier, 10., Some(0.1));
 }
 ```
 Solve 2-D Rayleigh Benard Convection with periodic sidewall
 ```rust
-use rustpde::integrate;
-use rustpde::navier::Navier2D;
-use rustpde::Integrate;
+use rustpde::mpi::initialize;
+use rustpde::mpi::integrate;
+use rustpde::mpi::navier::Navier2DMpi;
 
 fn main() {
+	// mpi
+    let universe = initialize().unwrap();
     // Parameters
-    let (nx, ny) = (64, 64);
-    let ra = 1e5;
+    let (nx, ny) = (128, 65);
+    let ra = 1e4;
     let pr = 1.;
+    let adiabatic = true;
     let aspect = 1.0;
-    let dt = 0.02;
-    let mut navier = Navier2D::new_periodic(nx, ny, ra, pr, dt, aspect);
-    integrate(&mut navier, 100., Some(1.0));
+    let dt = 0.01;
+    let mut navier = Navier2DMpi::new_periodic(&universe, nx, ny, ra, pr, dt, aspect);
+    navier.write_intervall = Some(1.0);
+    navier.random_disturbance(1e-4);
+    integrate(&mut navier, 10., Some(0.1));
 }
 ```
 
 ### Postprocess the output
 
 `rustpde` contains a `python` folder with some scripts.
-If you have run the above example, and you specified
-to save snapshots ( replace *None* with Some(1.) or any
-other value), you will see `hdf5` in the `data` folder.
+If you have run the above example and specified
+to save snapshots, you will see `hdf5` files in the `data` folder.
 
-You can create an animation with python's matplotlib by typing
-
-`python3 python/anim2d.py`
-
-Or just plot a single snapshot
+Plot a single snapshot via
 
 `python3 python/plot2d.py`
 
-Provided python has all librarys installed, you should now
-see an animation.
+or create an animation
+
+`python3 python/anim2d.py`
 
 #### Paraview
 
