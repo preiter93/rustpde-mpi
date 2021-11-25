@@ -5,9 +5,16 @@
 //! - cargo >= v1.49
 //! - `hdf5` (sudo apt-get install -y libhdf5-dev)
 //!
-//! When the mpi feature is chosen, you also need access to
+//! This is the mpi version of `rustpde`. The following additional
+//! dependencies are required:
+//!
 //! - mpi installation
 //! - libclang
+//!
+//! # Important
+//!
+//! OpenBlas's multithreading conflicts with internal multithreading.
+//! Turn it off for better performance:
 //!
 //! # Details
 //!
@@ -32,45 +39,48 @@
 //! see [`navier::navier_adjoint`]
 //!
 //! # Example
-//! Solve 2-D Rayleigh Benard Convection ( Run with `cargo run --release` )
+//! Solve 2-D Rayleigh Benard Convection ( Run with `cargo mpirun --np 2 --bin rustpde` )
 //! ```ignore
-//! use rustpde::integrate;
-//! use rustpde::navier::Navier2D;
-//! use rustpde::Integrate;
+//! use rustpde::mpi::initialize;
+//! use rustpde::mpi::integrate;
+//! use rustpde::mpi::navier::Navier2DMpi;
 //!
 //! fn main() {
+//! 	// mpi
+//!     let universe = initialize().unwrap();
 //!     // Parameters
-//!     let (nx, ny) = (64, 64);
-//!     let ra = 1e5;
+//!     let (nx, ny) = (65, 65);
+//!     let ra = 1e4;
 //!     let pr = 1.;
 //!     let adiabatic = true;
 //!     let aspect = 1.0;
-//!     let dt = 0.02;
-//!     let mut navier = Navier2D::new(nx, ny, ra, pr, dt, aspect, adiabatic);
-//!     // Set initial conditions
-//!     navier.set_velocity(0.2, 1., 1.);
-//!     // // Want to restart?
-//!     // navier.read("data/flow100.000.h5");
-//!     // Write first field
-//!     navier.callback();
-//!     integrate(&mut navier, 100., Some(1.0));
+//!     let dt = 0.01;
+//!     let mut navier = Navier2DMpi::new(&universe, nx, ny, ra, pr, dt, aspect, adiabatic);
+//!     navier.write_intervall = Some(1.0);
+//!     navier.random_disturbance(1e-4);
+//!     integrate(&mut navier, 10., Some(0.1));
 //! }
 //! ```
 //! Solve 2-D Rayleigh Benard Convection with periodic sidewall
 //! ```ignore
-//! use rustpde::integrate;
-//! use rustpde::navier::Navier2D;
-//! use rustpde::Integrate;
+//! use rustpde::mpi::initialize;
+//! use rustpde::mpi::integrate;
+//! use rustpde::mpi::navier::Navier2DMpi;
 //!
 //! fn main() {
+//! 	// mpi
+//!     let universe = initialize().unwrap();
 //!     // Parameters
-//!     let (nx, ny) = (64, 64);
-//!     let ra = 1e5;
+//!     let (nx, ny) = (128, 65);
+//!     let ra = 1e4;
 //!     let pr = 1.;
+//!     let adiabatic = true;
 //!     let aspect = 1.0;
-//!     let dt = 0.02;
-//!     let mut navier = Navier2D::new_periodic(nx, ny, ra, pr, dt, aspect);
-//!     integrate(&mut navier, 100., Some(1.0));
+//!     let dt = 0.01;
+//!     let mut navier = Navier2DMpi::new_periodic(&universe, nx, ny, ra, pr, dt, aspect);
+//!     navier.write_intervall = Some(1.0);
+//!     navier.random_disturbance(1e-4);
+//!     integrate(&mut navier, 10., Some(0.1));
 //! }
 //! ```
 //!
