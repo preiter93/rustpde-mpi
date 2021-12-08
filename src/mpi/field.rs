@@ -14,6 +14,7 @@ pub use super::Universe;
 use crate::bases::BaseSpace;
 use crate::bases::LaplacianInverse;
 use crate::bases::{BaseAll, BaseC2c, BaseR2c, BaseR2r, Basics};
+use crate::field::read::broadcast_2d;
 use crate::hdf5::Result;
 use crate::types::FloatNum;
 use crate::ReadField;
@@ -546,6 +547,23 @@ where
                         self.vhat.shape()
                     );
                     broadcast_2d(&x, &mut self.vhat);
+                    // Renormalize Fourier base
+                    let base = &self.space.base_all()[0];
+                    match base {
+                        BaseAll::BaseR2c(b) => match b {
+                            BaseR2c::FourierR2c(_) => {
+                                let norm = A::from(
+                                    (self.vhat.shape()[0] - 1) as f64 / (x.shape()[0] - 1) as f64,
+                                )
+                                .unwrap();
+                                for v in self.vhat.iter_mut() {
+                                    v.re = v.re * norm;
+                                    v.im = v.im * norm;
+                                }
+                            }
+                        },
+                        _ => (),
+                    };
                 }
                 self.backward();
                 println!("Reading file {:?} was successfull.", filename);
@@ -606,16 +624,4 @@ where
         write_to_hdf5(filename, "dy", None, &self.dx[1])?;
         Ok(())
     }
-}
-
-/// Broadcast 2d array
-fn broadcast_2d<T: Clone>(old: &Array2<T>, new: &mut Array2<T>) {
-    let sh: Vec<usize> = old
-        .shape()
-        .iter()
-        .zip(new.shape().iter())
-        .map(|(i, j)| *std::cmp::min(i, j))
-        .collect();
-    new.slice_mut(s![..sh[0], ..sh[1]])
-        .assign(&old.slice(s![..sh[0], ..sh[1]]));
 }

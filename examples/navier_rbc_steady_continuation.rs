@@ -14,7 +14,7 @@ fn main() {
     let aspect = 1.0;
     let dt = 0.5;
     let ra_list = ndarray::Array::logspace(10., 4.0, 4.2, 1);
-	
+
     get_first_field();
     let mut restart = String::from("restart.h5");
     for ra in ra_list.iter() {
@@ -22,7 +22,7 @@ fn main() {
         let hdffile = format!("flow_ra{:4.2e}.h5", ra);
         let txtfile = format!("flow_ra{:4.2e}.txt", ra);
 
-        if std::path::Path::new(&hdffile).exists(){
+        if std::path::Path::new(&hdffile).exists() {
             println!("Skip Ra: {:?}", ra);
             restart = String::from(&hdffile);
             continue;

@@ -1,5 +1,6 @@
 //! Implement reading from hdf5 file for struct Field
 use super::{BaseSpace, FieldBase};
+use crate::bases::{BaseAll, BaseR2c};
 use crate::hdf5::read_from_hdf5;
 use crate::hdf5::read_from_hdf5_complex;
 use crate::hdf5::H5Type;
@@ -100,6 +101,23 @@ where
                         self.vhat.shape()
                     );
                     broadcast_2d(&x, &mut self.vhat);
+                    // Renormalize Fourier base
+                    let base = &self.space.base_all()[0];
+                    match base {
+                        BaseAll::BaseR2c(b) => match b {
+                            BaseR2c::FourierR2c(_) => {
+                                let norm = A::from(
+                                    (self.vhat.shape()[0] - 1) as f64 / (x.shape()[0] - 1) as f64,
+                                )
+                                .unwrap();
+                                for v in self.vhat.iter_mut() {
+                                    v.re = v.re * norm;
+                                    v.im = v.im * norm;
+                                }
+                            }
+                        },
+                        _ => (),
+                    };
                 }
                 self.backward();
                 println!("Reading file {:?} was successfull.", filename);
@@ -110,13 +128,14 @@ where
 }
 
 /// Broadcast 2d array
-fn broadcast_2d<T: Clone>(old: &Array2<T>, new: &mut Array2<T>) {
+pub fn broadcast_2d<T: num_traits::Zero + Clone>(old: &Array2<T>, new: &mut Array2<T>) {
     let sh: Vec<usize> = old
         .shape()
         .iter()
         .zip(new.shape().iter())
         .map(|(i, j)| *std::cmp::min(i, j))
         .collect();
+    new.fill(T::zero());
     new.slice_mut(s![..sh[0], ..sh[1]])
         .assign(&old.slice(s![..sh[0], ..sh[1]]));
 }
