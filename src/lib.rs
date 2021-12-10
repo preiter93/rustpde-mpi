@@ -46,7 +46,7 @@
 //! use rustpde::mpi::navier::Navier2DMpi;
 //!
 //! fn main() {
-//! 	// mpi
+//!     // mpi
 //!     let universe = initialize().unwrap();
 //!     // Parameters
 //!     let (nx, ny) = (65, 65);
@@ -68,7 +68,7 @@
 //! use rustpde::mpi::navier::Navier2DMpi;
 //!
 //! fn main() {
-//! 	// mpi
+//!     // mpi
 //!     let universe = initialize().unwrap();
 //!     // Parameters
 //!     let (nx, ny) = (128, 65);

@@ -1,27 +1,29 @@
 //! Run example:
 //!
-//! cargo mpirun --np 2 --example solve_navier_mpi --release
+//! cargo mpirun --np 2 --bin rustpde --release
 //!
 //! Important: Disable obenblas multithreading:
+//! ```
 //! export OPENBLAS_NUM_THREADS=1
+//! ```
 use rustpde::mpi::initialize;
 use rustpde::mpi::integrate;
-use rustpde::mpi::navier::statistics::Statistics;
+// use rustpde::mpi::navier::statistics::Statistics;
 use rustpde::mpi::navier::Navier2DMpi;
+
 fn main() {
     // mpi
     let universe = initialize().unwrap();
     // Parameters
-    let (nx, ny) = (65, 65);
+    let (nx, ny) = (64, 65);
     let ra = 1e4;
     let pr = 1.;
-    let adiabatic = true;
     let aspect = 1.0;
     let dt = 0.01;
-    let mut navier = Navier2DMpi::new(&universe, nx, ny, ra, pr, dt, aspect, adiabatic);
+    let mut navier = Navier2DMpi::new_periodic(&universe, nx, ny, ra, pr, dt, aspect);
     navier.write_intervall = Some(1.0);
     // Statistics::new(navier, save_state, write_stat)
-    navier.statistics = Some(Statistics::new(&navier, 0.5, 10.0));
+    // navier.statistics = Some(Statistics::new(&navier, 0.5, 10.0));
     // navier.read("data/flow00026.40.h5");
     // navier.reset_time();
     // Set initial conditions

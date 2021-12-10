@@ -533,6 +533,7 @@ where
     Complex<A>: ScalarOperand,
     S: BaseSpace<A, 2, Physical = A, Spectral = Complex<A>>,
 {
+    #[allow(clippy::cast_precision_loss)]
     fn read(&mut self, filename: &str, group: Option<&str>) {
         use crate::hdf5::read_from_hdf5_complex;
         let result = read_from_hdf5_complex::<A, Ix2>(filename, "vhat", group);
@@ -557,8 +558,8 @@ where
                                 )
                                 .unwrap();
                                 for v in self.vhat.iter_mut() {
-                                    v.re = v.re * norm;
-                                    v.im = v.im * norm;
+                                    v.re *= norm;
+                                    v.im *= norm;
                                 }
                             }
                         },

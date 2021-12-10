@@ -1,7 +1,9 @@
 //! # Solver for Boussinesq equations (mpi supported)
 //! Default: Rayleigh Benard Convection
+pub mod adjoint;
 pub mod functions;
 pub mod statistics;
+use super::all_gather_sum;
 use super::broadcast_scalar;
 use super::solver::hholtz_adi::HholtzAdiMpi;
 use super::solver::poisson::PoissonMpi;
@@ -175,7 +177,7 @@ impl<'a> Navier2DMpi<'_, f64, Space2R2r<'a>>
     /// * `aspect` - Aspect ratio L/H
     ///
     /// * `adiabatic` - Boolean, sidewall temperature boundary condition
-    #[allow(clippy::similar_names)]
+    #[allow(clippy::similar_names, clippy::too_many_arguments)]
     pub fn new(
         universe: &'a Universe,
         nx: usize,
@@ -242,21 +244,7 @@ impl<'a> Navier2DMpi<'_, f64, Space2R2r<'a>>
         );
         let solver_pres =
             PoissonMpi::new(&pres[1], [1. / scale[0].powf(2.), 1. / scale[1].powf(2.)]);
-        // // define solver
-        // let solver_ux = HholtzAdi::new_mpi(
-        //     &ux,
-        //     [dt * nu / scale[0].powf(2.), dt * nu / scale[1].powf(2.)],
-        // );
-        // let solver_uy = HholtzAdi::new_mpi(
-        //     &uy,
-        //     [dt * nu / scale[0].powf(2.), dt * nu / scale[1].powf(2.)],
-        // );
-        // let solver_temp = HholtzAdi::new_mpi(
-        //     &temp,
-        //     [dt * ka / scale[0].powf(2.), dt * ka / scale[1].powf(2.)],
-        // );
-        // let solver_pres =
-        //     Poisson::new_mpi(&pres[1], [1. / scale[0].powf(2.), 1. / scale[1].powf(2.)]);
+
         let solver_hholtz = [solver_ux, solver_uy, solver_temp];
         let rhs = Array2::zeros(field.vhat_x_pen.raw_dim());
 
@@ -312,7 +300,7 @@ impl<'a> Navier2DMpi<'_, f64, Space2R2r<'a>>
         // Create base and field
         let mut x_base = chebyshev(nx);
         let y_base = cheb_dirichlet_bc(ny);
-        let mut field_bc = Field2Mpi::new(&Space2Mpi::new(&x_base.clone(), &y_base, universe));
+        let mut field_bc = Field2Mpi::new(&Space2Mpi::new(&x_base, &y_base, universe));
         let mut field_ortho =
             Field2Mpi::new(&Space2Mpi::new(&chebyshev(nx), &chebyshev(ny), universe));
 
@@ -351,7 +339,7 @@ impl<'a> Navier2DMpi<'_, f64, Space2R2r<'a>>
         // Create base and field
         let x_base = cheb_dirichlet_bc(ny);
         let mut y_base = chebyshev(nx);
-        let mut field_bc = Field2Mpi::new(&Space2Mpi::new(&x_base.clone(), &y_base, universe));
+        let mut field_bc = Field2Mpi::new(&Space2Mpi::new(&x_base, &y_base, universe));
         let mut field_ortho =
             Field2Mpi::new(&Space2Mpi::new(&chebyshev(nx), &chebyshev(ny), universe));
         // Set boundary condition along axis
@@ -420,7 +408,7 @@ impl<'a> Navier2DMpi<'_, Complex<f64>, Space2R2c<'a>>
     /// * `dt` - Timestep size
     ///
     /// * `aspect` - Aspect ratio L/H (unity is assumed to be to 2pi)
-    #[allow(clippy::similar_names)]
+    #[allow(clippy::similar_names, clippy::too_many_arguments)]
     pub fn new_periodic(
         universe: &'a Universe,
         nx: usize,
@@ -538,7 +526,7 @@ impl<'a> Navier2DMpi<'_, Complex<f64>, Space2R2c<'a>>
         let mut x_base = fourier_r2c(nx);
         let y_base = cheb_dirichlet_bc(ny);
 
-        let mut field_bc = Field2Mpi::new(&Space2Mpi::new(&x_base.clone(), &y_base, universe));
+        let mut field_bc = Field2Mpi::new(&Space2Mpi::new(&x_base, &y_base, universe));
         let mut field_ortho =
             Field2Mpi::new(&Space2Mpi::new(&fourier_r2c(nx), &chebyshev(ny), universe));
 
@@ -592,12 +580,14 @@ where
     }
 
     /// Return current rank
+    #[allow(clippy::cast_sign_loss)]
     pub fn nrank(&self) -> usize {
         let world = self.universe.world();
         world.rank() as usize
     }
 
     /// Return total number of processors
+    #[allow(clippy::cast_sign_loss)]
     pub fn nprocs(&self) -> usize {
         let world = self.universe.world();
         world.size() as usize

@@ -26,6 +26,7 @@
 //! banded after multiplication with the pseudoinverse
 //! of D2 (B2). In this case, the second equation is
 //! solved, with A = B2.
+#![allow(clippy::shadow_unrelated)]
 use crate::bases::BaseSpace;
 use crate::mpi::{BaseSpaceMpi, Equivalence, FieldBaseMpi};
 use crate::solver::{Fdma, MatVec, MatVecFdma, Solve, SolveReturn, Solver, SolverScalar};

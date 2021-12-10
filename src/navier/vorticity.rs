@@ -31,6 +31,9 @@ use num_traits::Zero;
 
 /// Read velocities from file,
 /// calculate dudy - dvdx and append vortictiy
+///
+/// # Errors
+/// Can't read file
 pub fn vorticity_from_file(fname: &str) -> Result<()> {
     let nx = hdf5_get_size_dimension(&fname, "x")?;
     let ny = hdf5_get_size_dimension(&fname, "y")?;
@@ -53,6 +56,9 @@ pub fn vorticity_from_file(fname: &str) -> Result<()> {
 /// calculate dudy - dvdx and append vortictiy
 ///
 /// x-direction is periodic
+///
+/// # Errors
+/// Can't read file
 pub fn vorticity_from_file_periodic(fname: &str) -> Result<()> {
     let nx = hdf5_get_size_dimension(&fname, "x")?;
     let ny = hdf5_get_size_dimension(&fname, "y")?;

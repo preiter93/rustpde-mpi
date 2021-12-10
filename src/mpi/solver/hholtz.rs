@@ -1,26 +1,16 @@
-//! Poisson Solver with mpi support
+//! # Helmoltz Solver with mpi support
+//!  Solve equations of the form:
 //!
-//! Input: x pencil distributed data in spectral space.
-//!
-//! # Examples
-//! `examples/solve_poisson_mpi.rs`
-//!
-//! # Description
-//! Solve equations of the form:
-//! ..math:
-//!  c * D2 vhat = f
+//!  (I-c*D2) vhat = f
 //!
 //! where D2 is the second derivative.
 //! Alternatively, if defined, multiply rhs
 //! before the solve step, i.e.
-//! ..math:
-//!  c * D2 vhat = A f
 //!
-//! For multidimensional equations, apply
-//! eigendecomposition on the non - outermost
-//! dimensions of the form
-//! ..math:
-//!   ``` (A + lam_i*C) x_i^* = b_i^* ```
+//!  (I-c*D2) vhat = A f
+//!
+//! For multidimensional equations, an eigendecomposition
+//! is applied to to (n-1) dimensions. See [`crate::solver::FdmaTensor`]
 //!
 //! Chebyshev bases: The equation becomes
 //! banded after multiplication with the pseudoinverse
@@ -36,27 +26,16 @@ use std::ops::{Add, Div, Mul};
 
 /// Container for Poisson Solver
 #[derive(Clone)]
-pub struct PoissonMpi<T, S, const N: usize> {
+pub struct HholtzMpi<T, S, const N: usize> {
     solver: Box<FdmaTensor<T, N>>,
     matvec: Vec<Option<MatVec<T>>>,
     space: S,
 }
 
-impl<S, const N: usize> PoissonMpi<f64, S, N> {
-    /// Construct Poisson solver from field:
+impl<S, const N: usize> HholtzMpi<f64, S, N> {
+    /// Construct Helmholtz solver from field:
     ///
-    ///  [(D2x x Iy) + (Ix x D2y)] vhat = [(Ax x Iy) + (Ix + Ay)] f
-    ///
-    /// Multiplication with right side is only necessary for bases
-    /// who need a preconditioner to make the laplacian banded, like
-    /// chebyshev bases.
-    ///
-    /// Bases are diagonal, when there laplacian is a diagonal matrix.
-    /// This is the case for fourier bases. Other bases will be made
-    /// diagonal by an eigendecomposition. This is entirely done in
-    /// the `FdmaTensor` solver.
-    ///
-    /// Solve with mpi support. Input must be x pencil distribution.
+    ///  (I-c*D2) vhat = A f
     pub fn new<T2>(field: &FieldBaseMpi<f64, f64, T2, S, N>, c: [f64; N]) -> Self
     where
         S: BaseSpace<f64, N, Physical = f64, Spectral = T2>
@@ -72,7 +51,7 @@ impl<S, const N: usize> PoissonMpi<f64, S, N> {
             // Matrices and preconditioner
             let (mat_a, mat_b, precond, is_diag) = field.ingredients_for_poisson(axis);
             let mass = mat_a;
-            let laplacian = mat_b * *ci;
+            let laplacian = -1.0 * mat_b * *ci;
             let matvec_axis = precond.map(|x| MatVec::MatVecFdma(MatVecFdma::new(&x)));
 
             laplacians.push(laplacian);
@@ -87,12 +66,7 @@ impl<S, const N: usize> PoissonMpi<f64, S, N> {
         let is_diag = vec_to_array::<&bool, N>(is_diags.iter().collect());
 
         // Solver
-        let mut solver = FdmaTensor::from_matrix(laplacians, masses, is_diag, 0.);
-        // Handle singularity (2D)
-        if N == 2 && solver.lam[0][0].abs() < 1e-10 {
-            solver.lam[0] -= 1e-10;
-            println!("Poisson seems singular! Eigenvalue 0 is manipulated to help out.");
-        }
+        let solver = FdmaTensor::from_matrix(laplacians, masses, is_diag, 1.);
 
         // let solver = Box::new(solver);
         Self {
@@ -104,7 +78,7 @@ impl<S, const N: usize> PoissonMpi<f64, S, N> {
 }
 
 #[allow(unused_variables)]
-impl<S, A> Solve<A, ndarray::Ix2> for PoissonMpi<f64, S, 2>
+impl<S, A> Solve<A, ndarray::Ix2> for HholtzMpi<f64, S, 2>
 where
     A: SolverScalar
         + Div<f64, Output = A>

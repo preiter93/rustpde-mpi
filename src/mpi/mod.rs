@@ -4,6 +4,7 @@ pub mod navier;
 pub mod solver;
 pub use field::Field2Mpi;
 pub use field::FieldBaseMpi;
+pub use funspace::mpi::all_gather_sum;
 pub use funspace::mpi::broadcast_scalar;
 pub use funspace::mpi::initialize;
 pub use funspace::mpi::space_traits::BaseSpaceMpi;

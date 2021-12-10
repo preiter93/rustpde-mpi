@@ -91,7 +91,7 @@ impl<const N: usize> Hholtz<f64, N> {
         let is_diag = vec_to_array::<&bool, N>(is_diags.iter().collect());
 
         // Solver
-        let solver = FdmaTensor::from_matrix(laplacians, masses, is_diag, 1.0);
+        let solver = FdmaTensor::from_matrix(laplacians, masses, is_diag, 1.);
 
         Self {
             solver: Box::new(solver),
