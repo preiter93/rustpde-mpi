@@ -8,6 +8,8 @@ use rustpde::mpi::integrate;
 use rustpde::mpi::navier::adjoint::Navier2DAdjointMpi;
 
 fn main() {
+    // mpi
+    let universe = initialize().unwrap();
     // Parameters
     let (nx, ny) = (128, 65);
     let pr = 1.;
