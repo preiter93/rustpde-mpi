@@ -165,6 +165,8 @@ pub struct Navier2D<T, S> {
     rhs: Array2<T>,
     /// Field for temperature boundary condition
     pub fieldbc: Option<Field2<T, S>>,
+    /// Field for pressure boundary condition
+    pub presbc: Option<Field2<T, S>>,
     /// Viscosity
     pub nu: f64,
     /// Thermal diffusivity
@@ -281,6 +283,7 @@ impl Navier2D<f64, Space2R2r>
             solver,
             rhs,
             fieldbc: None,
+            presbc: None,
             nu,
             ka,
             ra,
@@ -297,6 +300,7 @@ impl Navier2D<f64, Space2R2r>
         navier._scale();
         // Boundary condition
         navier.set_temp_bc(Self::bc_rbc(nx, ny));
+        // navier.set_pres_bc(Self::pres_bc_rbc(nx, ny));
         // Initial condition
         // navier.set_velocity(0.2, 2., 1.);
         navier.random_disturbance(0.1);
@@ -326,6 +330,42 @@ impl Navier2D<f64, Space2R2r>
         x_base.forward_inplace(&bc, &mut fieldbc.vhat, 0);
         fieldbc.backward();
         fieldbc.forward();
+        fieldbc
+    }
+
+    /// Return field for rayleigh benard
+    /// type pressure boundary conditions:
+    pub fn pres_bc_rbc(nx: usize, ny: usize) -> Field2<f64, Space2R2r> {
+        use ndarray::Axis;
+        use num_traits::Pow;
+
+        /// Return a, b of a*x**2 + b*x
+        /// from derivatives at the boundaries
+        fn parabola_coeff(df_l: f64, df_r: f64, x: &Array1<f64>) -> (f64, f64) {
+            let x_l = x[0];
+            let x_r = x[x.len() - 1];
+            let a = 0.5 * (df_r - df_l) / (x_r - x_l);
+            let b = df_l - 2. * a * x_l;
+            (a, b)
+        }
+
+        // Create base and field
+        let x_base = chebyshev(nx);
+        let y_base = chebyshev(ny);
+        let space = Space2::new(&x_base, &y_base);
+        let mut fieldbc = Field2::new(&space);
+
+        let y = &fieldbc.x[1];
+        let (a, b) = parabola_coeff(0.5, -0.5, y);
+        let parabola = a * y.mapv(|y| y.pow(2)) + b * y;
+        for mut axis in fieldbc.v.axis_iter_mut(Axis(0)) {
+            axis.assign(&parabola);
+        }
+
+        // Transform
+        fieldbc.forward();
+        fieldbc.backward();
+
         fieldbc
     }
 
@@ -441,6 +481,7 @@ impl Navier2D<Complex<f64>, Space2R2c>
             solver,
             rhs,
             fieldbc: None,
+            presbc: None,
             nu,
             ka,
             ra,
@@ -514,6 +555,11 @@ where
     /// Set boundary condition field for temperature
     pub fn set_temp_bc(&mut self, fieldbc: Field2<T, S>) {
         self.fieldbc = Some(fieldbc);
+    }
+
+    /// Set boundary condition field for pressure
+    pub fn set_pres_bc(&mut self, presbc: Field2<T, S>) {
+        self.presbc = Some(presbc);
     }
 
     fn zero_rhs(&mut self) {
@@ -623,6 +669,9 @@ macro_rules! impl_navier_convection {
                 self.rhs += &self.ux.to_ortho();
                 // + pres
                 self.rhs -= &(self.pres[0].gradient([1, 0], Some(self.scale)) * self.dt);
+                if let Some(field) = &self.presbc {
+                    self.rhs -= &(field.gradient([1, 0], Some(self.scale)) * self.dt);
+                }
                 // + convection
                 let conv = self.conv_ux(ux, uy);
                 self.rhs -= &(conv * self.dt);
@@ -642,6 +691,9 @@ macro_rules! impl_navier_convection {
                 self.rhs += &self.uy.to_ortho();
                 // + pres
                 self.rhs -= &(self.pres[0].gradient([0, 1], Some(self.scale)) * self.dt);
+                if let Some(field) = &self.presbc {
+                    self.rhs -= &(field.gradient([0, 1], Some(self.scale)) * self.dt);
+                }
                 // + buoyancy
                 self.rhs += &(buoy * self.dt);
                 // + convection
