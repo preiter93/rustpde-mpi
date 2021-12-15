@@ -638,9 +638,9 @@ macro_rules! impl_navier_convection {
                 conv += &conv_term(&self.ux[1], &mut self.field, ux, [1, 0], Some(self.scale));
                 conv += &conv_term(&self.uy[1], &mut self.field, uy, [1, 0], Some(self.scale));
                 //conv += &conv_term(&self.temp[1], &mut self.field, t, [1, 0], Some(self.scale));
-                conv += &conv_term(&self.temp[0], &mut self.field, t, [1, 0], Some(self.scale));
+                conv -= &conv_term(&self.temp[0], &mut self.field, t, [1, 0], Some(self.scale));
                 if let Some(field) = &self.tempbc {
-                    conv += &conv_term(&field, &mut self.field, t, [1, 0], Some(self.scale));
+                    conv -= &conv_term(&field, &mut self.field, t, [1, 0], Some(self.scale));
                 }
                 // if let Some(field) = &self.tempbc {
                 //     conv += &conv_term(
@@ -674,9 +674,9 @@ macro_rules! impl_navier_convection {
                 // + adjoint contributions
                 conv += &conv_term(&self.ux[1], &mut self.field, ux, [0, 1], Some(self.scale));
                 conv += &conv_term(&self.uy[1], &mut self.field, uy, [0, 1], Some(self.scale));
-                conv += &conv_term(&self.temp[0], &mut self.field, t, [0, 1], Some(self.scale));
+                conv -= &conv_term(&self.temp[0], &mut self.field, t, [0, 1], Some(self.scale));
                 if let Some(field) = &self.tempbc {
-                    conv += &conv_term(&field, &mut self.field, t, [0, 1], Some(self.scale));
+                    conv -= &conv_term(&field, &mut self.field, t, [0, 1], Some(self.scale));
                 }
                 // if let Some(field) = &self.tempbc {
                 //     conv += &conv_term(
