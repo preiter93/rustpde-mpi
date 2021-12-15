@@ -35,7 +35,7 @@ use std::collections::HashMap;
 use std::ops::{Div, Mul};
 
 /// Tolerance criteria for residual
-const RES_TOL: f64 = 1e-8;
+const RES_TOL: f64 = 1e-7;
 /// Laplacian weight in norm
 const WEIGHT_LAPLACIAN: f64 = 1e-1;
 /// Timestep of forward navier integration
@@ -49,7 +49,7 @@ pub struct Navier2DAdjointMpi<'a, T, S> {
     /// Mpi universe
     universe: &'a Universe,
     /// Navier Stokes solver
-    navier: Navier2DMpi<'a, T, S>,
+    pub navier: Navier2DMpi<'a, T, S>,
     /// Field for derivatives and transforms
     field: Field2Mpi<T, S>,
     /// Temperature \[Adjoint Field, NS Residual\]
@@ -584,8 +584,12 @@ where
     }
 
     /// Set boundary condition field for temperature
-    pub fn set_temp_bc(&mut self, fieldbc: Field2Mpi<T, S>) {
-        self.tempbc = Some(fieldbc);
+    pub fn set_temp_bc(&mut self, fieldbc: Field2Mpi<T, S>)
+    where
+        T: Clone,
+    {
+        self.tempbc = Some(fieldbc.clone());
+        self.navier.tempbc = Some(fieldbc);
     }
 
     fn zero_rhs(&mut self) {
@@ -633,7 +637,11 @@ macro_rules! impl_navier_convection {
                 // + adjoint contributions
                 conv += &conv_term(&self.ux[1], &mut self.field, ux, [1, 0], Some(self.scale));
                 conv += &conv_term(&self.uy[1], &mut self.field, uy, [1, 0], Some(self.scale));
-                conv += &conv_term(&self.temp[1], &mut self.field, t, [1, 0], Some(self.scale));
+                //conv += &conv_term(&self.temp[1], &mut self.field, t, [1, 0], Some(self.scale));
+                conv += &conv_term(&self.temp[0], &mut self.field, t, [1, 0], Some(self.scale));
+                if let Some(field) = &self.tempbc {
+                    conv += &conv_term(&field, &mut self.field, t, [1, 0], Some(self.scale));
+                }
                 // if let Some(field) = &self.tempbc {
                 //     conv += &conv_term(
                 //         &self.temp[1],
@@ -666,7 +674,10 @@ macro_rules! impl_navier_convection {
                 // + adjoint contributions
                 conv += &conv_term(&self.ux[1], &mut self.field, ux, [0, 1], Some(self.scale));
                 conv += &conv_term(&self.uy[1], &mut self.field, uy, [0, 1], Some(self.scale));
-                conv += &conv_term(&self.temp[1], &mut self.field, t, [0, 1], Some(self.scale));
+                conv += &conv_term(&self.temp[0], &mut self.field, t, [0, 1], Some(self.scale));
+                if let Some(field) = &self.tempbc {
+                    conv += &conv_term(&field, &mut self.field, t, [0, 1], Some(self.scale));
+                }
                 // if let Some(field) = &self.tempbc {
                 //     conv += &conv_term(
                 //         &self.temp[1],
@@ -715,7 +726,7 @@ macro_rules! impl_navier_convection {
                 // + old field
                 self.rhs += &self.ux[0].to_ortho_mpi();
                 // + pres
-                // self.rhs -= &(self.pres[0].gradient_mpi([1, 0], Some(self.scale)) * self.dt);
+                self.rhs -= &(self.pres[0].gradient_mpi([1, 0], Some(self.scale)) * self.dt);
                 // + convection
                 let conv = self.conv_ux(ux, uy, temp);
                 self.rhs += &(conv * self.dt);
@@ -739,12 +750,12 @@ macro_rules! impl_navier_convection {
                 // + old field
                 self.rhs += &self.uy[0].to_ortho_mpi();
                 // + pres
-                // self.rhs -= &(self.pres[0].gradient_mpi([0, 1], Some(self.scale)) * self.dt);
+                self.rhs -= &(self.pres[0].gradient_mpi([0, 1], Some(self.scale)) * self.dt);
                 // + convection
                 let conv = self.conv_uy(ux, uy, temp);
                 self.rhs += &(conv * self.dt);
                 // + temp bc (Rayleigh--Benard type)
-                self.rhs += &(self.temp[1].to_ortho_mpi() * 0.5 * self.dt);
+                // self.rhs += &(self.temp[1].to_ortho_mpi() * 0.5 * self.dt);
                 // + diffusion
                 self.rhs +=
                     &(self.uy[1].gradient_mpi([2, 0], Some(self.scale)) * self.dt * self.nu);
@@ -874,10 +885,10 @@ macro_rules! impl_integrate {
                 // Convection fields
                 self.ux[0].backward_mpi();
                 self.uy[0].backward_mpi();
-                self.temp[0].backward_mpi();
+                self.temp[1].backward_mpi();
                 let ux = self.ux[0].v_y_pen.to_owned();
                 let uy = self.uy[0].v_y_pen.to_owned();
-                let temp = self.temp[0].v_y_pen.to_owned();
+                let temp = self.temp[1].v_y_pen.to_owned();
 
                 // Update residual
                 self.update_residual();

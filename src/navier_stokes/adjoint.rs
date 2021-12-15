@@ -35,7 +35,6 @@
 //! An adjoint-based approach for finding invariant solutions of Navier--Stokes equations
 //! J. Fluid Mech., 795, 278-312.
 use super::boundary_conditions::{bc_rbc, bc_rbc_periodic};
-use super::boundary_conditions::{pres_bc_empty, pres_bc_empty_periodic};
 use super::conv_term::conv_term;
 use super::functions::{apply_cos_sin, apply_sin_cos, dealias, get_ka, get_nu};
 use super::navier::Navier2D;
@@ -346,7 +345,6 @@ impl Navier2DAdjoint<f64, Space2R2r> {
         navier_adjoint._scale();
         // Boundary condition
         navier_adjoint.set_temp_bc(bc_rbc(nx, ny));
-        navier_adjoint.set_pres_bc(pres_bc_empty(nx, ny));
         // Return
         navier_adjoint
     }
@@ -502,7 +500,6 @@ impl Navier2DAdjoint<Complex<f64>, Space2R2c> {
         navier_adjoint._scale();
         // Boundary condition
         navier_adjoint.set_temp_bc(bc_rbc_periodic(nx, ny));
-        navier_adjoint.set_pres_bc(pres_bc_empty_periodic(nx, ny));
         // Return
         navier_adjoint
     }
@@ -536,14 +533,18 @@ where
     }
 
     /// Set boundary condition field for temperature
-    pub fn set_temp_bc(&mut self, fieldbc: Field2<T, S>) {
-        self.tempbc = Some(fieldbc);
+    pub fn set_temp_bc(&mut self, fieldbc: Field2<T, S>)
+    where
+        T: Clone,
+    {
+        self.tempbc = Some(fieldbc.clone());
+        self.navier.tempbc = Some(fieldbc);
     }
 
-    /// Set boundary condition field for pressure
-    pub fn set_pres_bc(&mut self, fieldbc: Field2<T, S>) {
-        self.presbc = Some(fieldbc);
-    }
+    // /// Set boundary condition field for pressure
+    // pub fn set_pres_bc(&mut self, fieldbc: Field2<T, S>) {
+    //     self.presbc = Some(fieldbc);
+    // }
 
     fn zero_rhs(&mut self) {
         for r in self.rhs.iter_mut() {
@@ -575,7 +576,10 @@ macro_rules! impl_navier_convection {
                 // + adjoint contributions
                 conv += &conv_term(&self.ux[1], &mut self.field, ux, [1, 0], Some(self.scale));
                 conv += &conv_term(&self.uy[1], &mut self.field, uy, [1, 0], Some(self.scale));
-                conv += &conv_term(&self.temp[1], &mut self.field, t, [1, 0], Some(self.scale));
+                conv += &conv_term(&self.temp[0], &mut self.field, t, [1, 0], Some(self.scale));
+                if let Some(field) = &self.tempbc {
+                    conv += &conv_term(&field, &mut self.field, t, [1, 0], Some(self.scale));
+                }
                 // if let Some(x) = &self.tempbc {
                 //     conv += &conv_term(
                 //         &self.temp[1],
@@ -608,7 +612,10 @@ macro_rules! impl_navier_convection {
                 // + adjoint contributions
                 conv += &conv_term(&self.ux[1], &mut self.field, ux, [0, 1], Some(self.scale));
                 conv += &conv_term(&self.uy[1], &mut self.field, uy, [0, 1], Some(self.scale));
-                conv += &conv_term(&self.temp[1], &mut self.field, t, [0, 1], Some(self.scale));
+                conv += &conv_term(&self.temp[0], &mut self.field, t, [0, 1], Some(self.scale));
+                if let Some(field) = &self.tempbc {
+                    conv += &conv_term(&field, &mut self.field, t, [0, 1], Some(self.scale));
+                }
                 // if let Some(x) = &self.tempbc {
                 //     conv += &conv_term(
                 //         &self.temp[1],
@@ -657,7 +664,7 @@ macro_rules! impl_navier_convection {
                 // + old field
                 self.rhs += &self.ux[0].to_ortho();
                 // + pres
-                // self.rhs -= &(self.pres[0].gradient([1, 0], Some(self.scale)) * self.dt);
+                self.rhs -= &(self.pres[0].gradient([1, 0], Some(self.scale)) * self.dt);
                 // if let Some(field) = &self.presbc {
                 //     self.rhs -= &(field.gradient([1, 0], Some(self.scale)) * self.dt);
                 // }
@@ -682,7 +689,7 @@ macro_rules! impl_navier_convection {
                 // + old field
                 self.rhs += &self.uy[0].to_ortho();
                 // + pres
-                // self.rhs -= &(self.pres[0].gradient([0, 1], Some(self.scale)) * self.dt);
+                self.rhs -= &(self.pres[0].gradient([0, 1], Some(self.scale)) * self.dt);
                 // if let Some(field) = &self.presbc {
                 //     self.rhs -= &(field.gradient([0, 1], Some(self.scale)) * self.dt);
                 // }
@@ -690,7 +697,7 @@ macro_rules! impl_navier_convection {
                 let conv = self.conv_uy(ux, uy, temp);
                 self.rhs += &(conv * self.dt);
                 // + temp bc (Rayleigh--Benard type)
-                self.rhs += &(self.temp[1].to_ortho() * 0.5 * self.dt);
+                // self.rhs += &(self.temp[1].to_ortho() * 0.5 * self.dt);
                 // + diffusion
                 self.rhs += &(self.uy[1].gradient([2, 0], Some(self.scale)) * self.dt * self.nu);
                 self.rhs += &(self.uy[1].gradient([0, 2], Some(self.scale)) * self.dt * self.nu);
