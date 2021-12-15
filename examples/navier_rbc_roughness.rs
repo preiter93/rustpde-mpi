@@ -3,8 +3,8 @@
 //!
 //! cargo run --release --example navier_rbc_roughness
 use rustpde::integrate;
-use rustpde::navier::solid_masks::solid_roughness_sinusoid;
-use rustpde::navier::Navier2D;
+use rustpde::navier_stokes::solid_masks::solid_roughness_sinusoid;
+use rustpde::navier_stokes::Navier2D;
 // use rustpde::Integrate;
 
 fn main() {

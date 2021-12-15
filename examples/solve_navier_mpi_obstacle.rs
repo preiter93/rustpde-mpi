@@ -7,9 +7,9 @@
 //! export OPENBLAS_NUM_THREADS=1
 use rustpde::mpi::initialize;
 use rustpde::mpi::integrate;
-use rustpde::mpi::navier::Navier2DMpi;
-use rustpde::navier::solid_masks::solid_cylinder_inner;
-use rustpde::navier::solid_masks::solid_rectangle;
+// use rustpde::navier_stokes::solid_masks::solid_cylinder_inner;
+use rustpde::navier_stokes::solid_masks::solid_rectangle;
+use rustpde::navier_stokes_mpi::Navier2DMpi;
 
 fn main() {
     // mpi

@@ -28,7 +28,8 @@
 //! solved, with A = B2.
 #![allow(clippy::shadow_unrelated)]
 use crate::bases::BaseSpace;
-use crate::mpi::{BaseSpaceMpi, Equivalence, FieldBaseMpi};
+use crate::field_mpi::FieldBaseMpi;
+use crate::mpi::{BaseSpaceMpi, Equivalence};
 use crate::solver::{Fdma, MatVec, MatVecFdma, Solve, SolveReturn, Solver, SolverScalar};
 use ndarray::{Array2, ArrayBase, Data, DataMut, Ix2};
 use std::ops::{Add, Div, Mul};

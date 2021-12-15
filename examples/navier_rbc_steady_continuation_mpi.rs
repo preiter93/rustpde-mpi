@@ -5,7 +5,7 @@
 //! cargo mpirun --np 2 --example navier_rbc_steady_continuation_mpi --release
 use rustpde::mpi::initialize;
 use rustpde::mpi::integrate;
-use rustpde::mpi::navier::adjoint::Navier2DAdjointMpi;
+use rustpde::navier_stokes_mpi::Navier2DAdjointMpi;
 
 fn main() {
     // mpi
@@ -51,9 +51,7 @@ fn main() {
 
 #[allow(dead_code)]
 fn get_first_field() {
-    use rustpde::mpi::initialize;
-    use rustpde::mpi::integrate as int_mpi;
-    use rustpde::mpi::navier::Navier2DMpi;
+    use rustpde::navier_stokes_mpi::Navier2DMpi;
     // mpi
     let universe = initialize().unwrap();
     // Parameters
@@ -65,6 +63,6 @@ fn get_first_field() {
     let mut navier = Navier2DMpi::new_periodic(&universe, nx, ny, ra, pr, dt, aspect);
     navier.write_intervall = Some(100.0);
     navier.random_disturbance(1e-4);
-    int_mpi(&mut navier, 100., Some(1.0));
+    integrate(&mut navier, 100., Some(1.0));
     navier.write("restart.h5");
 }

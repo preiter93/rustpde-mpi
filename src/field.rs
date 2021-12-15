@@ -55,8 +55,8 @@ pub type Field2<T2, S> = FieldBase<f64, f64, T2, S, 2>;
 /// # Example
 /// 2-D field in chebyshev space
 ///```
-/// use rustpde::cheb_dirichlet;
-/// use rustpde::{Space2, Field2};
+/// use rustpde::bases::cheb_dirichlet;
+/// use rustpde::field::{Field2, Space2};
 ///
 /// let cdx = cheb_dirichlet::<f64>(8);
 /// let cdy = cheb_dirichlet::<f64>(6);

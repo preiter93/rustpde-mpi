@@ -4,7 +4,7 @@
 //!
 //! cargo run --release --example navier_rbc_steady
 use rustpde::integrate;
-use rustpde::navier::Navier2DAdjoint;
+use rustpde::navier_stokes::Navier2DAdjoint;
 
 fn main() {
     // Parameters

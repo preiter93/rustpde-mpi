@@ -1126,7 +1126,7 @@ dependencies = [
 
 [[package]]
 name = "rustpde"
-version = "0.2.2"
+version = "0.2.3"
 dependencies = [
  "criterion",
  "enum_dispatch",

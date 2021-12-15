@@ -4,12 +4,11 @@
 //!
 //! Important: Disable obenblas multithreading:
 //! export OPENBLAS_NUM_THREADS=1
-use rustpde::cheb_dirichlet;
+use rustpde::bases::cheb_dirichlet;
+use rustpde::field_mpi::{Field2Mpi, Space2Mpi};
 use rustpde::mpi::initialize;
-use rustpde::mpi::solver::poisson::PoissonMpi;
-use rustpde::mpi::Field2Mpi;
-use rustpde::mpi::Space2Mpi;
 use rustpde::solver::Solve;
+use rustpde::solver_mpi::poisson::PoissonMpi;
 
 fn main() {
     // parameter

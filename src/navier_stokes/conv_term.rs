@@ -44,8 +44,8 @@ where
 #[cfg(test)]
 mod navier {
     use super::*;
-    use crate::{cheb_dirichlet, cheb_neumann, chebyshev};
-    use crate::{Field2, Space2};
+    use crate::bases::{cheb_dirichlet, cheb_neumann, chebyshev};
+    use crate::field::{Field2, Space2};
     use std::f64::consts::PI;
 
     fn approx_eq<S, D>(result: &ndarray::ArrayBase<S, D>, expected: &ndarray::ArrayBase<S, D>)

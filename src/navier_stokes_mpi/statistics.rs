@@ -1,8 +1,8 @@
 //! Collect Statistics
 use super::Navier2DMpi;
+use crate::bases::BaseSpace;
 use crate::field::Field2;
 use crate::hdf5::Result;
-use crate::BaseSpace;
 use ndarray::Array2;
 use num_complex::Complex;
 

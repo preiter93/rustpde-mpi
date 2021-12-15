@@ -8,17 +8,14 @@
 //pub mod average;
 //pub mod read;
 //pub mod write;
-pub use super::BaseSpaceMpi;
-pub use super::Decomp2d;
-pub use super::Universe;
 use crate::bases::BaseSpace;
 use crate::bases::LaplacianInverse;
 use crate::bases::{BaseAll, BaseC2c, BaseR2c, BaseR2r, Basics};
 use crate::field::read::broadcast_2d;
+use crate::field::{ReadField, WriteField};
 use crate::hdf5::Result;
+pub use crate::mpi::{BaseSpaceMpi, Decomp2d, Space2Mpi, Universe};
 use crate::types::FloatNum;
-use crate::ReadField;
-use crate::WriteField;
 use hdf5_interface::H5Type;
 use ndarray::{prelude::*, Data};
 use ndarray::{Ix, ScalarOperand, Slice};
@@ -76,18 +73,6 @@ pub type Field2Mpi<T2, S> = FieldBaseMpi<f64, f64, T2, S, 2>;
 /// to spectral space, differentation and casting
 /// from an orthonormal space to its galerkin space (`from_ortho`
 /// and `to_ortho`).
-///
-// / # Example
-// / 2-D field in chebyshev space
-// /```
-// / use rustpde::cheb_dirichlet;
-// / use rustpde::{Space2, Field2};
-// /
-// / let cdx = cheb_dirichlet::<f64>(8);
-// / let cdy = cheb_dirichlet::<f64>(6);
-// / let space = Space2::new(&cdx, &cdy);
-// / let field = Field2::new(&space);
-// /```
 #[derive(Clone)]
 pub struct FieldBaseMpi<A, T1, T2, S, const N: usize> {
     /// Number of dimensions
@@ -449,20 +434,6 @@ where
     S: BaseSpace<A, 2, Physical = A, Spectral = T2>,
 {
     /// Return volumetric weighted average along axis
-    /// # Example
-    ///```
-    /// use ndarray::{array, Axis};
-    /// use rustpde::{chebyshev, Field2, Space2};
-    /// let (nx, ny) = (6, 5);
-    /// let space = Space2::new(&chebyshev(nx), &chebyshev(ny));
-    /// let mut field = Field2::new(&space);
-    /// for mut lane in field.v.lanes_mut(Axis(1)) {
-    ///     for (i, vi) in lane.iter_mut().enumerate() {
-    ///         *vi = i as f64;
-    ///     }
-    /// }
-    /// assert!(field.average_axis(0) == array![0.0, 1.0, 2.0, 3.0, 4.0]);
-    ///```
     pub fn average_axis(&self, axis: usize) -> Array1<A> {
         let mut weighted_avg = Array2::<A>::zeros(self.v.raw_dim());
         let length: A = (self.x[axis][self.x[axis].len() - 1] - self.x[axis][0]).abs();
@@ -475,20 +446,6 @@ where
     }
 
     /// Return volumetric weighted average
-    /// # Example
-    ///```
-    /// use ndarray::{array, Axis};
-    /// use rustpde::{chebyshev, Space2, Field2};
-    /// let (nx, ny) = (6, 5);
-    /// let space = Space2::new(&chebyshev(nx), &chebyshev(ny));
-    /// let mut field = Field2::new(&space);
-    /// for mut lane in field.v.lanes_mut(Axis(1)) {
-    ///     for (i, vi) in lane.iter_mut().enumerate() {
-    ///         *vi = i as f64;
-    ///     }
-    /// }
-    /// assert!(field.average() == 2.);
-    ///```
     pub fn average(&self) -> A {
         let mut avg_x = Array1::<A>::zeros(self.dx[1].raw_dim());
         let length = (self.x[1][self.x[1].len() - 1] - self.x[1][0]).abs();

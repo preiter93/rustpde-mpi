@@ -8,25 +8,26 @@
 //! M. Farazmand (2016).
 //! An adjoint-based approach for finding invariant solutions of Navier--Stokes equations
 //! J. Fluid Mech., 795, 278-312.
-use super::all_gather_sum;
-use super::broadcast_scalar;
+use super::boundary_conditions::{bc_rbc, bc_rbc_periodic};
 use super::functions::conv_term;
-use super::Communicator;
-use super::Universe;
-use super::{apply_cos_sin, apply_sin_cos, dealias};
-use super::{BaseSpaceMpi, Field2Mpi, Space2Mpi};
+use super::functions::{apply_cos_sin, apply_sin_cos, dealias};
+use super::functions::{get_ka, get_nu};
+use super::Navier2DMpi;
 use crate::bases::fourier_r2c;
 use crate::bases::{cheb_dirichlet, cheb_neumann, chebyshev};
 use crate::bases::{BaseR2c, BaseR2r};
 use crate::field::{BaseSpace, ReadField, WriteField};
+use crate::field_mpi::Field2Mpi;
 use crate::hdf5::{read_scalar_from_hdf5, write_scalar_to_hdf5, Result};
-use crate::mpi::solver::hholtz::HholtzMpi;
-use crate::mpi::solver::poisson::PoissonMpi;
+use crate::mpi::all_gather_sum;
+use crate::mpi::broadcast_scalar;
+use crate::mpi::Communicator;
 use crate::mpi::Integrate;
-use crate::mpi::Navier2DMpi;
-use crate::navier::navier::get_ka;
-use crate::navier::navier::get_nu;
+use crate::mpi::Universe;
+use crate::mpi::{BaseSpaceMpi, Space2Mpi};
 use crate::solver::Solve;
+use crate::solver_mpi::hholtz::HholtzMpi;
+use crate::solver_mpi::poisson::PoissonMpi;
 use ndarray::Array2;
 use num_complex::Complex;
 use num_traits::Zero;
@@ -35,6 +36,10 @@ use std::ops::{Div, Mul};
 
 /// Tolerance criteria for residual
 const RES_TOL: f64 = 1e-8;
+/// Laplacian weight in norm
+const WEIGHT_LAPLACIAN: f64 = 1e-1;
+/// Timestep of forward navier integration
+const DT_NAVIER: f64 = 1e-2;
 
 type Space2R2r<'a> = Space2Mpi<'a, BaseR2r<f64>, BaseR2r<f64>>;
 type Space2R2c<'a> = Space2Mpi<'a, BaseR2c<f64>, BaseR2r<f64>>;
@@ -64,7 +69,7 @@ pub struct Navier2DAdjointMpi<'a, T, S> {
     /// Fields unsmoothed (for diffusion) \[ux, uy, temp\]
     fields_unsmoothed: [Array2<T>; 3],
     /// Field for temperature boundary condition
-    pub fieldbc: Option<Field2Mpi<T, S>>,
+    pub tempbc: Option<Field2Mpi<T, S>>,
     /// Viscosity
     nu: f64,
     /// Thermal diffusivity
@@ -251,8 +256,7 @@ impl<'a> Navier2DAdjointMpi<'_, f64, Space2R2r<'a>> {
             ]
         };
         // define underlying naver-stokes solver
-        let dt_navier = 1e-2;
-        let navier = Navier2DMpi::new(universe, nx, ny, ra, pr, dt_navier, aspect, adiabatic);
+        let navier = Navier2DMpi::new(universe, nx, ny, ra, pr, DT_NAVIER, aspect, adiabatic);
         // pressure
         let pres = [
             Field2Mpi::new(&Space2Mpi::new(&chebyshev(nx), &chebyshev(ny), universe)),
@@ -270,26 +274,25 @@ impl<'a> Navier2DAdjointMpi<'_, f64, Space2R2r<'a>> {
             PoissonMpi::new(&pres[1], [1.0 / scale[0].powf(2.), 1.0 / scale[1].powf(2.)]);
 
         // define smoother (hholtz type) (1-weight*D2)
-        let weight_laplacian = 1e0;
         let smooth_ux = HholtzMpi::new(
             &ux[1],
             [
-                weight_laplacian / scale[0].powf(2.),
-                weight_laplacian / scale[1].powf(2.),
+                WEIGHT_LAPLACIAN / scale[0].powf(2.),
+                WEIGHT_LAPLACIAN / scale[1].powf(2.),
             ],
         );
         let smooth_uy = HholtzMpi::new(
             &uy[1],
             [
-                weight_laplacian / scale[0].powf(2.),
-                weight_laplacian / scale[1].powf(2.),
+                WEIGHT_LAPLACIAN / scale[0].powf(2.),
+                WEIGHT_LAPLACIAN / scale[1].powf(2.),
             ],
         );
         let smooth_temp = HholtzMpi::new(
             &temp[1],
             [
-                weight_laplacian / scale[0].powf(2.),
-                weight_laplacian / scale[1].powf(2.),
+                WEIGHT_LAPLACIAN / scale[0].powf(2.),
+                WEIGHT_LAPLACIAN / scale[1].powf(2.),
             ],
         );
 
@@ -346,14 +349,14 @@ impl<'a> Navier2DAdjointMpi<'_, f64, Space2R2r<'a>> {
             solver_pres,
             rhs,
             fields_unsmoothed,
-            fieldbc: None,
+            tempbc: None,
             nu,
             ka,
             ra,
             pr,
             time: 0.0,
             dt,
-            dt_navier,
+            dt_navier: DT_NAVIER,
             scale,
             diagnostics,
             write_intervall: None,
@@ -362,7 +365,7 @@ impl<'a> Navier2DAdjointMpi<'_, f64, Space2R2r<'a>> {
         };
         navier_adjoint._scale();
         // Boundary condition
-        navier_adjoint.set_temp_bc(Navier2DMpi::bc_rbc(nx, ny, universe));
+        navier_adjoint.set_temp_bc(bc_rbc(nx, ny, universe));
         // Return
         navier_adjoint
     }
@@ -440,8 +443,7 @@ impl<'a> Navier2DAdjointMpi<'_, Complex<f64>, Space2R2c<'a>> {
             )),
         ];
         // define underlying naver-stokes solver
-        let dt_navier = 1e-2;
-        let navier = Navier2DMpi::new_periodic(universe, nx, ny, ra, pr, dt_navier, aspect);
+        let navier = Navier2DMpi::new_periodic(universe, nx, ny, ra, pr, DT_NAVIER, aspect);
         // pressure
         let pres = [
             Field2Mpi::new(&Space2Mpi::new(&fourier_r2c(nx), &chebyshev(ny), universe)),
@@ -459,26 +461,25 @@ impl<'a> Navier2DAdjointMpi<'_, Complex<f64>, Space2R2c<'a>> {
             PoissonMpi::new(&pres[1], [1.0 / scale[0].powf(2.), 1.0 / scale[1].powf(2.)]);
 
         // define smoother (hholtz type) (1-weight*D2)
-        let weight_laplacian = 1e0;
         let smooth_ux = HholtzMpi::new(
             &ux[0],
             [
-                weight_laplacian / scale[0].powf(2.),
-                weight_laplacian / scale[1].powf(2.),
+                WEIGHT_LAPLACIAN / scale[0].powf(2.),
+                WEIGHT_LAPLACIAN / scale[1].powf(2.),
             ],
         );
         let smooth_uy = HholtzMpi::new(
             &uy[0],
             [
-                weight_laplacian / scale[0].powf(2.),
-                weight_laplacian / scale[1].powf(2.),
+                WEIGHT_LAPLACIAN / scale[0].powf(2.),
+                WEIGHT_LAPLACIAN / scale[1].powf(2.),
             ],
         );
         let smooth_temp = HholtzMpi::new(
             &temp[0],
             [
-                weight_laplacian / scale[0].powf(2.),
-                weight_laplacian / scale[1].powf(2.),
+                WEIGHT_LAPLACIAN / scale[0].powf(2.),
+                WEIGHT_LAPLACIAN / scale[1].powf(2.),
             ],
         );
 
@@ -533,14 +534,14 @@ impl<'a> Navier2DAdjointMpi<'_, Complex<f64>, Space2R2c<'a>> {
             solver_pres,
             rhs,
             fields_unsmoothed,
-            fieldbc: None,
+            tempbc: None,
             nu,
             ka,
             ra,
             pr,
             time: 0.0,
             dt,
-            dt_navier,
+            dt_navier: DT_NAVIER,
             scale,
             diagnostics,
             write_intervall: None,
@@ -549,7 +550,7 @@ impl<'a> Navier2DAdjointMpi<'_, Complex<f64>, Space2R2c<'a>> {
         };
         navier_adjoint._scale();
         // Boundary condition
-        navier_adjoint.set_temp_bc(Navier2DMpi::bc_rbc_periodic(nx, ny, universe));
+        navier_adjoint.set_temp_bc(bc_rbc_periodic(nx, ny, universe));
         // Return
         navier_adjoint
     }
@@ -584,7 +585,7 @@ where
 
     /// Set boundary condition field for temperature
     pub fn set_temp_bc(&mut self, fieldbc: Field2Mpi<T, S>) {
-        self.fieldbc = Some(fieldbc);
+        self.tempbc = Some(fieldbc);
     }
 
     fn zero_rhs(&mut self) {
@@ -633,15 +634,15 @@ macro_rules! impl_navier_convection {
                 conv += &conv_term(&self.ux[1], &mut self.field, ux, [1, 0], Some(self.scale));
                 conv += &conv_term(&self.uy[1], &mut self.field, uy, [1, 0], Some(self.scale));
                 conv += &conv_term(&self.temp[1], &mut self.field, t, [1, 0], Some(self.scale));
-                if let Some(field) = &self.fieldbc {
-                    conv += &conv_term(
-                        &self.temp[1],
-                        &mut self.field,
-                        &field.v_y_pen,
-                        [1, 0],
-                        Some(self.scale),
-                    );
-                }
+                // if let Some(field) = &self.tempbc {
+                //     conv += &conv_term(
+                //         &self.temp[1],
+                //         &mut self.field,
+                //         &field.v_y_pen,
+                //         [1, 0],
+                //         Some(self.scale),
+                //     );
+                // }
                 // -> spectral space
                 self.field.v_y_pen.assign(&conv);
                 self.field.forward_mpi();
@@ -666,15 +667,15 @@ macro_rules! impl_navier_convection {
                 conv += &conv_term(&self.ux[1], &mut self.field, ux, [0, 1], Some(self.scale));
                 conv += &conv_term(&self.uy[1], &mut self.field, uy, [0, 1], Some(self.scale));
                 conv += &conv_term(&self.temp[1], &mut self.field, t, [0, 1], Some(self.scale));
-                if let Some(field) = &self.fieldbc {
-                    conv += &conv_term(
-                        &self.temp[1],
-                        &mut self.field,
-                        &field.v_y_pen,
-                        [0, 1],
-                        Some(self.scale),
-                    );
-                }
+                // if let Some(field) = &self.tempbc {
+                //     conv += &conv_term(
+                //         &self.temp[1],
+                //         &mut self.field,
+                //         &field.v_y_pen,
+                //         [0, 1],
+                //         Some(self.scale),
+                //     );
+                // }
                 // -> spectral space
                 self.field.v_y_pen.assign(&conv);
                 self.field.forward_mpi();
@@ -714,7 +715,7 @@ macro_rules! impl_navier_convection {
                 // + old field
                 self.rhs += &self.ux[0].to_ortho_mpi();
                 // + pres
-                self.rhs -= &(self.pres[0].gradient_mpi([1, 0], Some(self.scale)) * self.dt);
+                // self.rhs -= &(self.pres[0].gradient_mpi([1, 0], Some(self.scale)) * self.dt);
                 // + convection
                 let conv = self.conv_ux(ux, uy, temp);
                 self.rhs += &(conv * self.dt);
@@ -738,10 +739,12 @@ macro_rules! impl_navier_convection {
                 // + old field
                 self.rhs += &self.uy[0].to_ortho_mpi();
                 // + pres
-                self.rhs -= &(self.pres[0].gradient_mpi([0, 1], Some(self.scale)) * self.dt);
+                // self.rhs -= &(self.pres[0].gradient_mpi([0, 1], Some(self.scale)) * self.dt);
                 // + convection
                 let conv = self.conv_uy(ux, uy, temp);
                 self.rhs += &(conv * self.dt);
+                // + temp bc (Rayleigh--Benard type)
+                self.rhs += &(self.temp[1].to_ortho_mpi() * 0.5 * self.dt);
                 // + diffusion
                 self.rhs +=
                     &(self.uy[1].gradient_mpi([2, 0], Some(self.scale)) * self.dt * self.nu);
@@ -1042,7 +1045,7 @@ where
         eval_nu(
             &mut self.temp[0],
             &mut self.field,
-            &self.fieldbc,
+            &self.tempbc,
             &self.scale,
         )
     }
@@ -1057,7 +1060,7 @@ where
             &mut self.temp[0],
             &mut self.uy[0],
             &mut self.field,
-            &self.fieldbc,
+            &self.tempbc,
             self.ka,
             &self.scale,
         )
@@ -1206,7 +1209,7 @@ macro_rules! impl_read_write_navier {
                 self.uy[0].backward();
                 self.pres[0].backward();
                 // Add boundary contribution
-                if let Some(x) = &self.fieldbc {
+                if let Some(x) = &self.tempbc {
                     self.temp[0].v = &self.temp[0].v + &x.v;
                 }
                 // Field
@@ -1221,7 +1224,7 @@ macro_rules! impl_read_write_navier {
                 write_scalar_to_hdf5(&filename, "nu", None, self.nu).ok();
                 write_scalar_to_hdf5(&filename, "kappa", None, self.ka).ok();
                 // Undo addition of bc
-                if self.fieldbc.is_some() {
+                if self.tempbc.is_some() {
                     self.temp[0].backward();
                 }
                 Ok(())

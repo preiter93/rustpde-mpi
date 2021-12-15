@@ -1,9 +1,4 @@
 //! MPI Routines
-pub mod field;
-pub mod navier;
-pub mod solver;
-pub use field::Field2Mpi;
-pub use field::FieldBaseMpi;
 pub use funspace::mpi::all_gather_sum;
 pub use funspace::mpi::broadcast_scalar;
 pub use funspace::mpi::initialize;
@@ -13,7 +8,6 @@ pub use funspace::mpi::Decomp2d;
 pub use funspace::mpi::Equivalence;
 pub use funspace::mpi::Space2 as Space2Mpi;
 pub use funspace::mpi::Universe;
-pub use navier::Navier2DMpi;
 
 const MAX_TIMESTEP: usize = 10_000_000;
 

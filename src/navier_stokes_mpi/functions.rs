@@ -1,12 +1,26 @@
 //! Some functions
 use crate::field::BaseSpace;
-use crate::mpi::{BaseSpaceMpi, FieldBaseMpi};
+use crate::field_mpi::{Field2Mpi, FieldBaseMpi};
+use crate::mpi::BaseSpaceMpi;
 use crate::types::FloatNum;
 use crate::types::Scalar;
-use ndarray::Array2;
 use ndarray::ScalarOperand;
+use ndarray::{s, Array2};
 use num_complex::Complex;
+use num_traits::Zero;
 use std::ops::{Div, Mul};
+
+/// Return viscosity from Ra, Pr, and height of the cell
+pub fn get_nu(ra: f64, pr: f64, height: f64) -> f64 {
+    let f = pr / (ra / height.powf(3.0));
+    f.sqrt()
+}
+
+/// Return diffusivity from Ra, Pr, and height of the cell
+pub fn get_ka(ra: f64, pr: f64, height: f64) -> f64 {
+    let f = 1. / ((ra / height.powf(3.0)) * pr);
+    f.sqrt()
+}
 
 /// Calculate u*dvdx
 ///
@@ -142,4 +156,89 @@ where
     let two = A::one() + A::one();
     field.v *= two * scale[1] / nu;
     field.average()
+}
+
+/// Dealias field (2/3 rule)
+pub fn dealias<S, T2>(field: &mut Field2Mpi<T2, S>)
+where
+    S: BaseSpace<f64, 2, Physical = f64, Spectral = T2>
+        + BaseSpaceMpi<f64, 2, Physical = f64, Spectral = T2>,
+    T2: Zero + Clone + Copy,
+{
+    let zero = T2::zero();
+    let n_x: usize = field.vhat.shape()[0] * 2 / 3;
+    let n_y: usize = field.vhat.shape()[1] * 2 / 3;
+    // x dim
+    field.vhat_x_pen.slice_mut(s![n_x.., ..]).fill(zero);
+    // y dim is broken
+    let dcp = field.space.get_decomp_from_global_shape(field.vhat.shape());
+    if n_y < dcp.x_pencil.en[1] {
+        let yst = if n_y > dcp.x_pencil.st[1] {
+            n_y - dcp.x_pencil.st[1]
+        } else {
+            0
+        };
+        field.vhat_x_pen.slice_mut(s![.., yst..]).fill(zero);
+    }
+}
+
+/// Construct field f(x,y) = amp \* sin(pi\*m)cos(pi\*n)
+pub fn apply_sin_cos<S, T2>(field: &mut Field2Mpi<T2, S>, amp: f64, m: f64, n: f64)
+where
+    S: BaseSpace<f64, 2, Physical = f64, Spectral = T2>
+        + BaseSpaceMpi<f64, 2, Physical = f64, Spectral = T2>,
+{
+    use std::f64::consts::PI;
+    let nx = field.v.shape()[0];
+    let ny = field.v.shape()[1];
+    let x = &field.x[0];
+    let y = &field.x[1];
+    let x = &((x - x[0]) / (x[x.len() - 1] - x[0]));
+    let y = &((y - y[0]) / (y[y.len() - 1] - y[0]));
+    let arg_x = PI * m;
+    let arg_y = PI * n;
+    for i in 0..nx {
+        for j in 0..ny {
+            field.v[[i, j]] = amp * (arg_x * x[i]).sin() * (arg_y * y[j]).cos();
+        }
+    }
+    field.forward();
+}
+
+/// Construct field f(x,y) = amp \* cos(pi\*m)sin(pi\*n)
+pub fn apply_cos_sin<S, T2>(field: &mut Field2Mpi<T2, S>, amp: f64, m: f64, n: f64)
+where
+    S: BaseSpace<f64, 2, Physical = f64, Spectral = T2>
+        + BaseSpaceMpi<f64, 2, Physical = f64, Spectral = T2>,
+{
+    use std::f64::consts::PI;
+    let nx = field.v.shape()[0];
+    let ny = field.v.shape()[1];
+    let x = &field.x[0];
+    let y = &field.x[1];
+    let x = &((x - x[0]) / (x[x.len() - 1] - x[0]));
+    let y = &((y - y[0]) / (y[y.len() - 1] - y[0]));
+    let arg_x = PI * m;
+    let arg_y = PI * n;
+    for i in 0..nx {
+        for j in 0..ny {
+            field.v[[i, j]] = amp * (arg_x * x[i]).cos() * (arg_y * y[j]).sin();
+        }
+    }
+    field.forward();
+}
+
+/// Apply random disturbance [-c, c]
+pub fn apply_random_disturbance<S, T2>(field: &mut Field2Mpi<T2, S>, c: f64)
+where
+    S: BaseSpace<f64, 2, Physical = f64, Spectral = T2>
+        + BaseSpaceMpi<f64, 2, Physical = f64, Spectral = T2>,
+{
+    use ndarray_rand::rand_distr::Uniform;
+    use ndarray_rand::RandomExt;
+    let nx = field.v.shape()[0];
+    let ny = field.v.shape()[1];
+    let rand: Array2<f64> = Array2::random((nx, ny), Uniform::new(-c, c));
+    field.v.assign(&rand);
+    field.forward();
 }

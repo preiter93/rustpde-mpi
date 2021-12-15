@@ -133,8 +133,8 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::bases::{cheb_dirichlet, fourier_r2c};
     use crate::field::{Field1, Field2, Space1, Space2};
-    use crate::{cheb_dirichlet, fourier_r2c};
     use ndarray::array;
 
     fn approx_eq<S, D>(result: &ndarray::ArrayBase<S, D>, expected: &ndarray::ArrayBase<S, D>)

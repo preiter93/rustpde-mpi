@@ -162,7 +162,8 @@ pub fn solid_porosity_interpolate(
     diameter: f64,
     porosity: f64,
 ) -> [Array2<f64>; 2] {
-    use crate::{chebyshev, Field2, Space2};
+    use crate::bases::{chebyshev, Space2};
+    use crate::field::Field2;
     let (n, m) = (513, 513);
     let mut field = Field2::new(&Space2::new(&chebyshev(n), &chebyshev(m)));
     let mask = solid_porosity(&field.x[0], &field.x[1], diameter, porosity);

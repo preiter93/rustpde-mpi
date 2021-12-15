@@ -28,6 +28,7 @@ with h5py.File(filename, "r") as f:
     t = np.array(f["temp/v"])
     u = np.array(f["ux/v"])
     v = np.array(f["uy/v"])
+    p = np.array(f["pres/v"])
     x = np.array(f["x"])
     y = np.array(f["y"])
 
@@ -41,7 +42,7 @@ with h5py.File(filename, "r") as f:
         s = None
 
 print("Plot {:}".format(filename))
-fig, ax = plot_streamplot(x, y, t, u, v, return_fig=True)
+fig, ax = plot_streamplot(x, y, p, u, v, return_fig=True)
 
 
 if vorticity is not None:

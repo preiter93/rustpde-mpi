@@ -43,7 +43,7 @@
 //! ```ignore
 //! use rustpde::mpi::initialize;
 //! use rustpde::mpi::integrate;
-//! use rustpde::mpi::navier::Navier2DMpi;
+//! use rustpde::navier_stokes_mpi::Navier2DMpi;
 //!
 //! fn main() {
 //!     // mpi
@@ -65,7 +65,7 @@
 //! ```ignore
 //! use rustpde::mpi::initialize;
 //! use rustpde::mpi::integrate;
-//! use rustpde::mpi::navier::Navier2DMpi;
+//! use rustpde::navier_stokes_mpi::Navier2DMpi;
 //!
 //! fn main() {
 //!     // mpi
@@ -124,14 +124,14 @@
 extern crate enum_dispatch;
 pub mod bases;
 pub mod field;
+pub mod field_mpi;
 pub mod hdf5;
 pub mod mpi;
-pub mod navier;
+pub mod navier_stokes;
+pub mod navier_stokes_mpi;
 pub mod solver;
+pub mod solver_mpi;
 pub mod types;
-pub use bases::{cheb_dirichlet, cheb_neumann, chebyshev, fourier_c2c, fourier_r2c};
-pub use field::{BaseSpace, Field1, Field2, FieldBase, ReadField, Space1, Space2, WriteField};
-pub use solver::{Solver, SolverField, SolverScalar};
 
 /// Real type (not active)
 //pub type Real = f64;

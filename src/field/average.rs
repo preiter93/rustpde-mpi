@@ -11,7 +11,8 @@ where
     /// # Example
     ///```
     /// use ndarray::{array, Axis};
-    /// use rustpde::{chebyshev, Field2, Space2};
+    /// use rustpde::field::{Field2, Space2};
+    /// use rustpde::bases::chebyshev;
     /// let (nx, ny) = (6, 5);
     /// let space = Space2::new(&chebyshev(nx), &chebyshev(ny));
     /// let mut field = Field2::new(&space);
@@ -37,7 +38,8 @@ where
     /// # Example
     ///```
     /// use ndarray::{array, Axis};
-    /// use rustpde::{chebyshev, Space2, Field2};
+    /// use rustpde::field::{Field2, Space2};
+    /// use rustpde::bases::chebyshev;
     /// let (nx, ny) = (6, 5);
     /// let space = Space2::new(&chebyshev(nx), &chebyshev(ny));
     /// let mut field = Field2::new(&space);

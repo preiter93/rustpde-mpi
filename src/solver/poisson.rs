@@ -152,8 +152,8 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::bases::{cheb_dirichlet, fourier_r2c};
     use crate::field::{Field1, Field2, Space1, Space2};
-    use crate::{cheb_dirichlet, fourier_r2c};
     use ndarray::array;
     use num_complex::Complex;
     //use std::f64::consts::PI;

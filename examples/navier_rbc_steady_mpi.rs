@@ -6,7 +6,7 @@
 //! export OPENBLAS_NUM_THREADS=1
 use rustpde::mpi::initialize;
 use rustpde::mpi::integrate;
-use rustpde::mpi::navier::adjoint::Navier2DAdjointMpi;
+use rustpde::navier_stokes_mpi::Navier2DAdjointMpi;
 
 fn main() {
     // mpi

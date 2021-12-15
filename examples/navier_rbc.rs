@@ -3,7 +3,7 @@
 //!
 //! cargo run --release --example navier_rbc
 use rustpde::integrate;
-use rustpde::navier::Navier2D;
+use rustpde::navier_stokes::Navier2D;
 // use rustpde::Integrate;
 
 fn main() {

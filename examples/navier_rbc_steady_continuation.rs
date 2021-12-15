@@ -4,7 +4,7 @@
 //!
 //! cargo run --release --example navier_rbc_steady_continuation
 use rustpde::integrate;
-use rustpde::navier::Navier2DAdjoint;
+use rustpde::navier_stokes::Navier2DAdjoint;
 // use rustpde::Integrate;
 
 fn main() {
@@ -51,7 +51,7 @@ fn main() {
 fn get_first_field() {
     use rustpde::mpi::initialize;
     use rustpde::mpi::integrate as int_mpi;
-    use rustpde::mpi::navier::Navier2DMpi;
+    use rustpde::navier_stokes_mpi::Navier2DMpi;
     // mpi
     let universe = initialize().unwrap();
     // Parameters

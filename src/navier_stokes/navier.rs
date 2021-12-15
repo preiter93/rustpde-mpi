@@ -6,7 +6,7 @@
 //! Solve 2-D Rayleigh Benard Convection
 //! ```ignore
 //! use rustpde::{Integrate, integrate};
-//! use rustpde::navier::Navier2D;
+//! use rustpde::navier_stokes::Navier2D;
 //!
 //! fn main() {
 //!     // Parameters
@@ -26,33 +26,24 @@
 //!     integrate(&mut navier, 100., Some(1.0));
 //! }
 //! ```
-use super::conv_term;
+use super::boundary_conditions::{bc_rbc, bc_rbc_periodic};
+use super::boundary_conditions::{pres_bc_rbc, pres_bc_rbc_periodic};
+use super::conv_term::conv_term;
+use super::functions::{apply_cos_sin, apply_random_disturbance, apply_sin_cos, dealias};
+use super::functions::{get_ka, get_nu};
 use super::statistics::Statistics;
-use crate::bases::fourier_r2c;
-use crate::bases::{cheb_dirichlet, cheb_dirichlet_bc, cheb_neumann, chebyshev};
+use crate::bases::{cheb_dirichlet, cheb_neumann, chebyshev, fourier_r2c};
 use crate::bases::{BaseR2c, BaseR2r};
 use crate::field::{BaseSpace, Field2, ReadField, Space2, WriteField};
 use crate::hdf5::{read_scalar_from_hdf5, write_scalar_to_hdf5, Result};
 use crate::solver::{Hholtz, HholtzAdi, Poisson, Solve, SolverField};
 use crate::types::Scalar;
 use crate::Integrate;
-use ndarray::{s, Array1, Array2};
+use ndarray::Array2;
 use num_complex::Complex;
 use num_traits::Zero;
 use std::collections::HashMap;
 use std::ops::{Div, Mul};
-
-/// Return viscosity from Ra, Pr, and height of the cell
-pub fn get_nu(ra: f64, pr: f64, height: f64) -> f64 {
-    let f = pr / (ra / height.powf(3.0));
-    f.sqrt()
-}
-
-/// Return diffusivity from Ra, Pr, and height of the cell
-pub fn get_ka(ra: f64, pr: f64, height: f64) -> f64 {
-    let f = 1. / ((ra / height.powf(3.0)) * pr);
-    f.sqrt()
-}
 
 type Space2R2r = Space2<BaseR2r<f64>, BaseR2r<f64>>;
 type Space2R2c = Space2<BaseR2c<f64>, BaseR2r<f64>>;
@@ -136,7 +127,7 @@ pub trait NavierConvection {
 ///
 /// ```
 /// use rustpde::{integrate, Integrate};
-/// use rustpde::navier::Navier2D;
+/// use rustpde::navier_stokes::Navier2D;
 /// let (nx, ny) = (33, 33);
 /// let ra = 1e5;
 /// let pr = 1.;
@@ -164,7 +155,7 @@ pub struct Navier2D<T, S> {
     /// Buffer
     rhs: Array2<T>,
     /// Field for temperature boundary condition
-    pub fieldbc: Option<Field2<T, S>>,
+    pub tempbc: Option<Field2<T, S>>,
     /// Field for pressure boundary condition
     pub presbc: Option<Field2<T, S>>,
     /// Viscosity
@@ -282,7 +273,7 @@ impl Navier2D<f64, Space2R2r>
             pres,
             solver,
             rhs,
-            fieldbc: None,
+            tempbc: None,
             presbc: None,
             nu,
             ka,
@@ -298,104 +289,14 @@ impl Navier2D<f64, Space2R2r>
             statistics: None,
         };
         navier._scale();
-        // Boundary condition
-        navier.set_temp_bc(Self::bc_rbc(nx, ny));
-        // navier.set_pres_bc(Self::pres_bc_rbc(nx, ny));
+        // Boundary conditions
+        navier.set_temp_bc(bc_rbc(nx, ny));
+        navier.set_pres_bc(pres_bc_rbc(nx, ny));
         // Initial condition
         // navier.set_velocity(0.2, 2., 1.);
         navier.random_disturbance(0.1);
         // Return
         navier
-    }
-
-    /// Return field for rayleigh benard
-    /// type temperature boundary conditions:
-    ///
-    /// T = 0.5 at the bottom and T = -0.5
-    /// at the top
-    pub fn bc_rbc(nx: usize, ny: usize) -> Field2<f64, Space2R2r> {
-        use crate::bases::Transform;
-        // Create base and field
-        let mut x_base = chebyshev(nx);
-        let y_base = cheb_dirichlet_bc(ny);
-        let space = Space2::new(&x_base, &y_base);
-        let mut fieldbc = Field2::new(&space);
-        let mut bc = fieldbc.vhat.to_owned();
-
-        // Set boundary condition along axis
-        bc.slice_mut(s![.., 0]).fill(0.5);
-        bc.slice_mut(s![.., 1]).fill(-0.5);
-
-        // Transform
-        x_base.forward_inplace(&bc, &mut fieldbc.vhat, 0);
-        fieldbc.backward();
-        fieldbc.forward();
-        fieldbc
-    }
-
-    /// Return field for rayleigh benard
-    /// type pressure boundary conditions:
-    pub fn pres_bc_rbc(nx: usize, ny: usize) -> Field2<f64, Space2R2r> {
-        use ndarray::Axis;
-        use num_traits::Pow;
-
-        /// Return a, b of a*x**2 + b*x
-        /// from derivatives at the boundaries
-        fn parabola_coeff(df_l: f64, df_r: f64, x: &Array1<f64>) -> (f64, f64) {
-            let x_l = x[0];
-            let x_r = x[x.len() - 1];
-            let a = 0.5 * (df_r - df_l) / (x_r - x_l);
-            let b = df_l - 2. * a * x_l;
-            (a, b)
-        }
-
-        // Create base and field
-        let x_base = chebyshev(nx);
-        let y_base = chebyshev(ny);
-        let space = Space2::new(&x_base, &y_base);
-        let mut fieldbc = Field2::new(&space);
-
-        let y = &fieldbc.x[1];
-        let (a, b) = parabola_coeff(0.5, -0.5, y);
-        let parabola = a * y.mapv(|y| y.pow(2)) + b * y;
-        for mut axis in fieldbc.v.axis_iter_mut(Axis(0)) {
-            axis.assign(&parabola);
-        }
-
-        // Transform
-        fieldbc.forward();
-        fieldbc.backward();
-
-        fieldbc
-    }
-
-    /// Return field for zero sidewall boundary
-    /// condition with smooth transfer function
-    /// to T = 0.5 at the bottom and T = -0.5
-    /// at the top
-    ///
-    /// # Arguments
-    ///
-    /// * `k` - Transition parameter (larger means smoother)
-    pub fn bc_zero(nx: usize, ny: usize, k: f64) -> Field2<f64, Space2R2r> {
-        use crate::bases::Transform;
-        // Create base and field
-        let x_base = cheb_dirichlet_bc(ny);
-        let mut y_base = chebyshev(nx);
-        let space = Space2::new(&x_base, &y_base);
-        let mut fieldbc = Field2::new(&space);
-        let mut bc = fieldbc.vhat.to_owned();
-        // Sidewall temp function
-        let transfer = transfer_function(&fieldbc.x[1], 0.5, 0., -0.5, k);
-        // Set boundary condition along axis
-        bc.slice_mut(s![0, ..]).assign(&transfer);
-        bc.slice_mut(s![1, ..]).assign(&transfer);
-
-        // Transform
-        y_base.forward_inplace(&bc, &mut fieldbc.vhat, 1);
-        fieldbc.backward();
-        fieldbc.forward();
-        fieldbc
     }
 }
 
@@ -480,7 +381,7 @@ impl Navier2D<Complex<f64>, Space2R2c>
             pres,
             solver,
             rhs,
-            fieldbc: None,
+            tempbc: None,
             presbc: None,
             nu,
             ka,
@@ -497,37 +398,13 @@ impl Navier2D<Complex<f64>, Space2R2c>
         };
         navier._scale();
         // Boundary condition
-        navier.set_temp_bc(Self::bc_rbc_periodic(nx, ny));
+        navier.set_temp_bc(bc_rbc_periodic(nx, ny));
+        navier.set_pres_bc(pres_bc_rbc_periodic(nx, ny));
         // Initial condition
         // navier.set_velocity(0.2, 2., 1.);
         navier.random_disturbance(0.1);
         // Return
         navier
-    }
-
-    /// Return field for rayleigh benard
-    /// type temperature boundary conditions:
-    ///
-    /// T = 0.5 at the bottom and T = -0.5
-    /// at the top
-    pub fn bc_rbc_periodic(nx: usize, ny: usize) -> Field2<Complex<f64>, Space2R2c> {
-        use crate::bases::Transform;
-        // Create base and field
-        let mut x_base = fourier_r2c(nx);
-        let y_base = cheb_dirichlet_bc(ny);
-        let space = Space2::new(&x_base, &y_base);
-        let mut fieldbc = Field2::new(&space);
-        let mut bc = Array2::<f64>::zeros((nx, 2));
-
-        // Set boundary condition along axis
-        bc.slice_mut(s![.., 0]).fill(0.5);
-        bc.slice_mut(s![.., 1]).fill(-0.5);
-
-        // Transform
-        x_base.forward_inplace(&bc, &mut fieldbc.vhat, 0);
-        fieldbc.backward();
-        fieldbc.forward();
-        fieldbc
     }
 }
 
@@ -554,7 +431,7 @@ where
 
     /// Set boundary condition field for temperature
     pub fn set_temp_bc(&mut self, fieldbc: Field2<T, S>) {
-        self.fieldbc = Some(fieldbc);
+        self.tempbc = Some(fieldbc);
     }
 
     /// Set boundary condition field for pressure
@@ -588,7 +465,7 @@ macro_rules! impl_navier_convection {
                 let mut conv = conv_term(&self.temp, &mut self.field, ux, [1, 0], Some(self.scale));
                 conv += &conv_term(&self.temp, &mut self.field, uy, [0, 1], Some(self.scale));
                 // + bc contribution
-                if let Some(field) = &self.fieldbc {
+                if let Some(field) = &self.tempbc {
                     conv += &conv_term(field, &mut self.field, ux, [1, 0], Some(self.scale));
                     conv += &conv_term(field, &mut self.field, uy, [0, 1], Some(self.scale));
                 }
@@ -596,7 +473,7 @@ macro_rules! impl_navier_convection {
                 if let Some(solid) = &self.solid {
                     let eta = 1e-2;
                     self.temp.backward();
-                    let damp = self.fieldbc.as_ref().map_or_else(
+                    let damp = self.tempbc.as_ref().map_or_else(
                         || -1. / eta * &solid[0] * (&self.temp.v - &solid[1]),
                         |field| -1. / eta * &solid[0] * &(&self.temp.v + &field.v - &solid[1]),
                     );
@@ -712,7 +589,7 @@ macro_rules! impl_navier_convection {
                 // + old field
                 self.rhs += &self.temp.to_ortho();
                 // + diffusion bc contribution
-                if let Some(field) = &self.fieldbc {
+                if let Some(field) = &self.tempbc {
                     self.rhs += &(field.gradient([2, 0], Some(self.scale)) * self.dt * self.ka);
                     self.rhs += &(field.gradient([0, 2], Some(self.scale)) * self.dt * self.ka);
                 }
@@ -787,7 +664,7 @@ macro_rules! impl_integrate_for_navier {
             fn update(&mut self) {
                 // Buoyancy
                 let mut that = self.temp.to_ortho();
-                if let Some(field) = &self.fieldbc {
+                if let Some(field) = &self.tempbc {
                     that = &that + &field.to_ortho();
                 }
 
@@ -848,7 +725,7 @@ macro_rules! impl_integrate_for_navier {
                     if (self.time % &statistics.save_stat) < self.dt / 2.
                         || (self.time % &statistics.save_stat) > &statistics.save_stat - self.dt / 2.
                     {
-                        let that = if let Some(x) = &self.fieldbc {
+                        let that = if let Some(x) = &self.tempbc {
                             (&self.temp.to_ortho() + &x.to_ortho()).to_owned()
                         } else {
                             self.temp.to_ortho()
@@ -939,7 +816,7 @@ where
     /// $$
     pub fn eval_nu(&mut self) -> f64 {
         use super::functions::eval_nu;
-        eval_nu(&mut self.temp, &mut self.field, &self.fieldbc, &self.scale)
+        eval_nu(&mut self.temp, &mut self.field, &self.tempbc, &self.scale)
     }
 
     /// Returns volumetric Nusselt number
@@ -952,7 +829,7 @@ where
             &mut self.temp,
             &mut self.uy,
             &mut self.field,
-            &self.fieldbc,
+            &self.tempbc,
             self.ka,
             &self.scale,
         )
@@ -991,7 +868,7 @@ where
         apply_random_disturbance(&mut self.ux, amp);
         apply_random_disturbance(&mut self.uy, amp);
         // Remove bc base from temp
-        if let Some(x) = &self.fieldbc {
+        if let Some(x) = &self.tempbc {
             self.temp.v = &self.temp.v - &x.v;
             self.temp.forward();
         }
@@ -1037,7 +914,7 @@ macro_rules! impl_read_write_navier {
                 self.uy.backward();
                 self.pres[0].backward();
                 // Add boundary contribution
-                if let Some(x) = &self.fieldbc {
+                if let Some(x) = &self.tempbc {
                     self.temp.v = &self.temp.v + &x.v;
                 }
                 // Field
@@ -1056,7 +933,7 @@ macro_rules! impl_read_write_navier {
                 write_scalar_to_hdf5(&filename, "nu", None, self.nu)?;
                 write_scalar_to_hdf5(&filename, "kappa", None, self.ka)?;
                 // Undo addition of bc
-                if self.fieldbc.is_some() {
+                if self.tempbc.is_some() {
                     self.temp.backward();
                 }
                 Ok(())
@@ -1067,89 +944,3 @@ macro_rules! impl_read_write_navier {
 
 impl_read_write_navier!(f64);
 impl_read_write_navier!(Complex<f64>);
-
-/// Dealias field (2/3 rule)
-pub fn dealias<S, T2>(field: &mut Field2<T2, S>)
-where
-    S: BaseSpace<f64, 2, Physical = f64, Spectral = T2>,
-    T2: Zero + Clone + Copy,
-{
-    let zero = T2::zero();
-    let n_x: usize = field.vhat.shape()[0] * 2 / 3;
-    let n_y: usize = field.vhat.shape()[1] * 2 / 3;
-    field.vhat.slice_mut(s![n_x.., ..]).fill(zero);
-    field.vhat.slice_mut(s![.., n_y..]).fill(zero);
-}
-
-/// Construct field f(x,y) = amp \* sin(pi\*m)cos(pi\*n)
-pub fn apply_sin_cos<S, T2>(field: &mut Field2<T2, S>, amp: f64, m: f64, n: f64)
-where
-    S: BaseSpace<f64, 2, Physical = f64, Spectral = T2>,
-{
-    use std::f64::consts::PI;
-    let nx = field.v.shape()[0];
-    let ny = field.v.shape()[1];
-    let x = &field.x[0];
-    let y = &field.x[1];
-    let x = &((x - x[0]) / (x[x.len() - 1] - x[0]));
-    let y = &((y - y[0]) / (y[y.len() - 1] - y[0]));
-    let arg_x = PI * m;
-    let arg_y = PI * n;
-    for i in 0..nx {
-        for j in 0..ny {
-            field.v[[i, j]] = amp * (arg_x * x[i]).sin() * (arg_y * y[j]).cos();
-        }
-    }
-    field.forward();
-}
-
-/// Construct field f(x,y) = amp \* cos(pi\*m)sin(pi\*n)
-pub fn apply_cos_sin<S, T2>(field: &mut Field2<T2, S>, amp: f64, m: f64, n: f64)
-where
-    S: BaseSpace<f64, 2, Physical = f64, Spectral = T2>,
-{
-    use std::f64::consts::PI;
-    let nx = field.v.shape()[0];
-    let ny = field.v.shape()[1];
-    let x = &field.x[0];
-    let y = &field.x[1];
-    let x = &((x - x[0]) / (x[x.len() - 1] - x[0]));
-    let y = &((y - y[0]) / (y[y.len() - 1] - y[0]));
-    let arg_x = PI * m;
-    let arg_y = PI * n;
-    for i in 0..nx {
-        for j in 0..ny {
-            field.v[[i, j]] = amp * (arg_x * x[i]).cos() * (arg_y * y[j]).sin();
-        }
-    }
-    field.forward();
-}
-
-/// Apply random disturbance [-c, c]
-pub fn apply_random_disturbance<S, T2>(field: &mut Field2<T2, S>, c: f64)
-where
-    S: BaseSpace<f64, 2, Physical = f64, Spectral = T2>,
-{
-    use ndarray_rand::rand_distr::Uniform;
-    use ndarray_rand::RandomExt;
-    let nx = field.v.shape()[0];
-    let ny = field.v.shape()[1];
-    let rand: Array2<f64> = Array2::random((nx, ny), Uniform::new(-c, c));
-    field.v.assign(&rand);
-    field.forward();
-}
-
-/// Transfer function for zero sidewall boundary condition
-pub fn transfer_function(x: &Array1<f64>, v_l: f64, v_m: f64, v_r: f64, k: f64) -> Array1<f64> {
-    let mut result = Array1::zeros(x.raw_dim());
-    let length = x[x.len() - 1] - x[0];
-    for (i, xi) in x.iter().enumerate() {
-        let xs = xi * 2. / length;
-        if xs < 0. {
-            result[i] = -1.0 * k * xs / (k + xs + 1.) * (v_l - v_m) + v_m;
-        } else {
-            result[i] = 1.0 * k * xs / (k - xs + 1.) * (v_r - v_m) + v_m;
-        }
-    }
-    result
-}
