@@ -14,7 +14,7 @@ type Space2R2c<'a> = Space2Mpi<'a, BaseR2c<f64>, BaseR2r<f64>>;
 ///
 /// T = 0.5 at the bottom and T = -0.5
 /// at the top
-pub fn bc_rbc<'a>(nx: usize, ny: usize, universe: &'a Universe) -> Field2Mpi<f64, Space2R2r<'a>> {
+pub fn bc_rbc(nx: usize, ny: usize, universe: &Universe) -> Field2Mpi<f64, Space2R2r> {
     use crate::bases::Transform;
     // Create base and field
     let mut x_base = chebyshev(nx);
@@ -40,11 +40,7 @@ pub fn bc_rbc<'a>(nx: usize, ny: usize, universe: &'a Universe) -> Field2Mpi<f64
 
 /// Return field for rayleigh benard
 /// type pressure boundary conditions:
-pub fn pres_bc_rbc<'a>(
-    nx: usize,
-    ny: usize,
-    universe: &'a Universe,
-) -> Field2Mpi<f64, Space2R2r<'a>> {
+pub fn pres_bc_rbc(nx: usize, ny: usize, universe: &Universe) -> Field2Mpi<f64, Space2R2r> {
     use ndarray::Axis;
     use num_traits::Pow;
 
@@ -88,12 +84,7 @@ pub fn pres_bc_rbc<'a>(
 /// # Arguments
 ///
 /// * `k` - Transition parameter (larger means smoother)
-pub fn bc_zero<'a>(
-    nx: usize,
-    ny: usize,
-    k: f64,
-    universe: &'a Universe,
-) -> Field2Mpi<f64, Space2R2r<'a>> {
+pub fn bc_zero(nx: usize, ny: usize, k: f64, universe: &Universe) -> Field2Mpi<f64, Space2R2r> {
     use crate::bases::Transform;
     // Create base and field
     let x_base = cheb_dirichlet_bc(ny);
@@ -122,11 +113,11 @@ pub fn bc_zero<'a>(
 ///
 /// T = 0.5 at the bottom and T = -0.5
 /// at the top
-pub fn bc_rbc_periodic<'a>(
+pub fn bc_rbc_periodic(
     nx: usize,
     ny: usize,
-    universe: &'a Universe,
-) -> Field2Mpi<Complex<f64>, Space2R2c<'a>> {
+    universe: &Universe,
+) -> Field2Mpi<Complex<f64>, Space2R2c> {
     use crate::bases::Transform;
     // Create base and field
     let mut x_base = fourier_r2c(nx);
@@ -154,11 +145,11 @@ pub fn bc_rbc_periodic<'a>(
 
 /// Return field for rayleigh benard
 /// type pressure boundary conditions:
-pub fn pres_bc_rbc_periodic<'a>(
+pub fn pres_bc_rbc_periodic(
     nx: usize,
     ny: usize,
-    universe: &'a Universe,
-) -> Field2Mpi<Complex<f64>, Space2R2c<'a>> {
+    universe: &Universe,
+) -> Field2Mpi<Complex<f64>, Space2R2c> {
     use ndarray::Axis;
     use num_traits::Pow;
 

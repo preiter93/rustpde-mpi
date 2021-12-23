@@ -73,7 +73,7 @@ where
     }
 }
 
-#[allow(unused_variables)]
+#[allow(unused_variables, clippy::similar_names)]
 impl<T, T2, S, A> Solve<A, ndarray::Ix2> for HholtzAdiMpi<T, S, 2>
 where
     T: SolverScalar,

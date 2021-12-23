@@ -26,45 +26,45 @@ use std::convert::TryInto;
 pub type Field2Mpi<T2, S> = FieldBaseMpi<f64, f64, T2, S, 2>;
 
 /// Field struct with mpi support
-///
+///```
 /// v: ndarray
-///
+///```
 ///   Holds data in physical space
-///
+///```
 /// vhat: ndarray
-///
+///```
 ///   Holds data in spectral space
-///
+///```
 /// v_x_pen: ndarray
-///
+///```
 ///   Holds local data in physical space, distributed as x-pencil
 ///   across processors
-///
+///```
 /// v_y_pen: ndarray
-///
+///```
 ///   Holds local data in physical space, distributed as y-pencil
 ///   across processors
-///
+///```
 /// vhat_x_pen: ndarray
-///
+///```
 ///   Holds local data in spectral space, distributed as x-pencil
 ///   across processors
-///
+///```
 /// vhat_y_pen: ndarray
-///
+///```
 ///   Holds local data in spectral space, distributed as y-pencil
 ///   across processors
-///
+///```
 /// x: list of ndarrays
-///
+///```
 ///   Grid points (physical space)
-///
+///```
 /// dx: list of ndarrays
-///
+///```
 ///   Grid points deltas (physical space)
-///
+///```
 /// solvers: HashMap<String, `SolverField`>
-///
+///```
 ///  Add plans for various equations
 ///
 /// `FieldBase` is derived from `SpaceBase` struct,
@@ -73,6 +73,7 @@ pub type Field2Mpi<T2, S> = FieldBaseMpi<f64, f64, T2, S, 2>;
 /// to spectral space, differentation and casting
 /// from an orthonormal space to its galerkin space (`from_ortho`
 /// and `to_ortho`).
+#[allow(clippy::similar_names)]
 #[derive(Clone)]
 pub struct FieldBaseMpi<A, T1, T2, S, const N: usize> {
     /// Number of dimensions
@@ -106,6 +107,7 @@ where
     S: BaseSpace<A, N, Physical = T1, Spectral = T2> + BaseSpaceMpi<A, N>,
 {
     /// Return a new field from a given space
+    #[allow(clippy::similar_names)]
     pub fn new(space: &S) -> Self {
         let v = space.ndarray_physical();
         let vhat = space.ndarray_spectral();
@@ -490,7 +492,7 @@ where
     Complex<A>: ScalarOperand,
     S: BaseSpace<A, 2, Physical = A, Spectral = Complex<A>>,
 {
-    #[allow(clippy::cast_precision_loss)]
+    #[allow(clippy::cast_precision_loss, clippy::single_match)]
     fn read(&mut self, filename: &str, group: Option<&str>) {
         use crate::hdf5::read_from_hdf5_complex;
         let result = read_from_hdf5_complex::<A, Ix2>(filename, "vhat", group);

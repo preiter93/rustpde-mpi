@@ -104,7 +104,7 @@ impl<S, const N: usize> PoissonMpi<f64, S, N> {
     }
 }
 
-#[allow(unused_variables)]
+#[allow(unused_variables, clippy::similar_names)]
 impl<S, A> Solve<A, ndarray::Ix2> for PoissonMpi<f64, S, 2>
 where
     A: SolverScalar
@@ -153,23 +153,23 @@ where
             self.space.shape_spectral()[0],
             self.space.shape_spectral()[1],
         ]);
-        let mut buf_ypen: Array2<A> = Array2::zeros(dcp.y_pencil.sz);
-        let mut buf_xpen: Array2<A> = Array2::zeros(dcp.x_pencil.sz);
-        dcp.transpose_y_to_x(&buf, &mut buf_xpen);
+        let mut buf_y_pen: Array2<A> = Array2::zeros(dcp.y_pencil.sz);
+        let buf_x_pen: Array2<A> = Array2::zeros(dcp.x_pencil.sz);
+        dcp.transpose_y_to_x(&buf, &mut buf_y_pen);
 
         // Solve fdma-tensor
         let solver = &self.solver;
         // Step 1: Forward Transform rhs along x
         if let Some(p) = &solver.fwd[0] {
             let p_cast: Array2<A> = p.mapv(|x| x.into());
-            output.assign(&p_cast.dot(&buf_xpen));
+            output.assign(&p_cast.dot(&buf_x_pen));
         } else {
-            output.assign(&buf_xpen);
+            output.assign(&buf_x_pen);
         }
-        dcp.transpose_x_to_y(&output, &mut buf_ypen);
+        dcp.transpose_x_to_y(&output, &mut buf_y_pen);
         let lam_local = solver.lam[0].slice(s![dcp.y_pencil.st[0]..=dcp.y_pencil.en[0]]);
         // Step 2: Solve along y (but iterate over all lanes in x)
-        Zip::from(buf_ypen.outer_iter_mut())
+        Zip::from(buf_y_pen.outer_iter_mut())
             .and(lam_local.outer_iter())
             .for_each(|mut out, lam| {
                 let l = lam.as_slice().unwrap()[0] + solver.alpha;
@@ -179,7 +179,7 @@ where
             });
 
         // Step 3: Backward Transform solution along x
-        dcp.transpose_y_to_x(&buf_ypen, output);
+        dcp.transpose_y_to_x(&buf_y_pen, output);
         if let Some(q) = &solver.bwd[0] {
             let q_cast: Array2<A> = q.mapv(|x| x.into());
             output.assign(&q_cast.dot(output));

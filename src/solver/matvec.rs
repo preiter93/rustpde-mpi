@@ -8,6 +8,7 @@ use std::ops::{Add, Div, Mul};
 
 /// Collection of Matrix-Vector Product Solver
 //#[enum_dispatch(SolveReturn<A, D>)]
+#[allow(clippy::pub_enum_variant_names)]
 #[derive(Clone)]
 pub enum MatVec<T> {
     /// Ndarrays Matrix Vector Product

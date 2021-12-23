@@ -13,7 +13,7 @@
 //!
 //! # Important
 //!
-//! OpenBlas's multithreading conflicts with internal multithreading.
+//! Openblas multithreading conflicts with internal multithreading.
 //! Turn it off for better performance:
 //!
 //! # Details

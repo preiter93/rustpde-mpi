@@ -78,7 +78,7 @@ impl<S, const N: usize> HholtzMpi<f64, S, N> {
     }
 }
 
-#[allow(unused_variables)]
+#[allow(unused_variables, clippy::similar_names)]
 impl<S, A> Solve<A, ndarray::Ix2> for HholtzMpi<f64, S, 2>
 where
     A: SolverScalar
