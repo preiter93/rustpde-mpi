@@ -154,8 +154,8 @@ where
             self.space.shape_spectral()[1],
         ]);
         let mut buf_y_pen: Array2<A> = Array2::zeros(dcp.y_pencil.sz);
-        let buf_x_pen: Array2<A> = Array2::zeros(dcp.x_pencil.sz);
-        dcp.transpose_y_to_x(&buf, &mut buf_y_pen);
+        let mut buf_x_pen: Array2<A> = Array2::zeros(dcp.x_pencil.sz);
+        dcp.transpose_y_to_x(&buf, &mut buf_x_pen);
 
         // Solve fdma-tensor
         let solver = &self.solver;

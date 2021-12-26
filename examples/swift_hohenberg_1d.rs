@@ -171,12 +171,10 @@ impl SwiftHohenberg1D {
         // build implicit matrices
         let matl = self
             .wavenumber()
-            .mapv(|x| -2. * x.powi(2).re - x.powi(4).re)
-            + 1. * (self.r - 1.);
-        let mati = &(&matl * -1. * self.dt) + 1.;
+            .mapv(|x| (2. * x.powi(2).re + x.powi(4).re - (self.r - 1.)) * self.dt + 1.);
 
         // update field
-        self.theta.vhat = &self.rhs / &mati;
+        self.theta.vhat = &self.rhs / &matl;
 
         // update time
         self.time += self.dt;
