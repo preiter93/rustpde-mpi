@@ -15,7 +15,7 @@ dependencies are required:
 
 ## Important
 
-OpenBlas's multithreading conflicts with internal multithreading.
+Openblas multithreading conflicts with internal multithreading.
 Turn it off for better performance:
 
 ## Details
@@ -45,10 +45,10 @@ Solve 2-D Rayleigh Benard Convection ( Run with `cargo mpirun --np 2 --bin rustp
 ```rust
 use rustpde::mpi::initialize;
 use rustpde::mpi::integrate;
-use rustpde::mpi::navier::Navier2DMpi;
+use rustpde::navier_stokes_mpi::Navier2DMpi;
 
 fn main() {
-	// mpi
+    // mpi
     let universe = initialize().unwrap();
     // Parameters
     let (nx, ny) = (65, 65);
@@ -67,10 +67,10 @@ Solve 2-D Rayleigh Benard Convection with periodic sidewall
 ```rust
 use rustpde::mpi::initialize;
 use rustpde::mpi::integrate;
-use rustpde::mpi::navier::Navier2DMpi;
+use rustpde::navier_stokes_mpi::Navier2DMpi;
 
 fn main() {
-	// mpi
+    // mpi
     let universe = initialize().unwrap();
     // Parameters
     let (nx, ny) = (128, 65);
