@@ -1,7 +1,7 @@
 //! Simulate Rayleigh-Benard Convection two dimensional
 //! in a bounded domain with obstacle
 //!
-//! cargo mpirun --np 2 --example solve_navier_mpi_obstacle --release
+//! cargo mpirun --np 2 --example navier_mpi_obstacle --release
 //!
 //! Important: Disable obenblas multithreading:
 //! export OPENBLAS_NUM_THREADS=1

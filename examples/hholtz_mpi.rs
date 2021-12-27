@@ -1,6 +1,6 @@
 //! Run example:
 //!
-//! cargo mpirun --np 2 --example solve_hholtz_mpi --release
+//! cargo mpirun --np 2 --example hholtz_mpi --release
 //!
 //! Important: Disable obenblas multithreading:
 //! export OPENBLAS_NUM_THREADS=1
@@ -43,9 +43,7 @@ fn main() {
     field.forward();
     field.scatter_spectral();
     let rhs = field.to_ortho_mpi();
-    for _ in 0..1 {
-        hholtz.solve(&rhs, &mut field.vhat_x_pen, 0);
-    }
+    hholtz.solve(&rhs, &mut field.vhat_x_pen, 0);
     field.backward_mpi();
     field.all_gather_physical();
 

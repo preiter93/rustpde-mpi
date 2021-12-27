@@ -1,8 +1,13 @@
+//! # 1D Swift hohenberg equation
+//! ```
+//! du/dt = [r - (lap + 1)^2] u - u^3
+//! ```
+//!
 //! Run example:
 //!
+//! ```
 //! cargo run --example swift_hohenberg_1d --release
 //! ```
-// #![allow(dead_code)]
 use ndarray::Array1;
 use num_complex::Complex;
 use num_traits::identities::Zero;
@@ -116,7 +121,7 @@ impl SwiftHohenberg1D {
         use rustpde::field::WriteField;
         // Write field
         self.theta.backward();
-        self.theta.write(&filename, Some("theta"));
+        self.theta.write(&filename, Some("temp"));
         // Write scalars
         write_scalar_to_hdf5(&filename, "time", None, self.time)?;
         write_scalar_to_hdf5(&filename, "dt", None, self.dt)?;

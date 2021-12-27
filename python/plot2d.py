@@ -4,6 +4,7 @@ import glob
 import re
 import matplotlib.pyplot as plt
 from utils.plot_utils import plot_streamplot
+from utils.plot_utils import plot_contour
 
 # -- Get list of files
 fname, time = [], []
@@ -25,26 +26,36 @@ i = int(input())
 # -- Read hd5 file
 filename = fname[i]
 with h5py.File(filename, "r") as f:
-    t = np.array(f["temp/v"])
-    u = np.array(f["ux/v"])
-    v = np.array(f["uy/v"])
-    p = np.array(f["pres/v"])
     x = np.array(f["x"])
     y = np.array(f["y"])
+    t = np.array(f["temp/v"])
+    try:
+        u = np.array(f["ux/v"])
+        v = np.array(f["uy/v"])
+        p = np.array(f["pres/v"])
+    except:
+        u = v = p = None
 
     try:
         vorticity = np.array(f["vorticity/v"])
     except:
         vorticity = None
+        
     try:
         s = np.array(f["solid/mask"])
     except:
         s = None
 
 print("Plot {:}".format(filename))
-fig, ax = plot_streamplot(x, y, p, u, v, return_fig=True)
+if u is not None:
+    fig, ax = plot_streamplot(x, y, t, u, v, return_fig=True)
+else:
+    fig, ax = plot_contour(x, y, t, return_fig=True)
 
+fig.savefig("fig.png", bbox_inches="tight", dpi=200)
+plt.show()
 
+# Plot vorticity
 if vorticity is not None:
     fig, ax = plot_streamplot(x, y, vorticity, u, v, return_fig=True)
     plt.show()
@@ -54,6 +65,3 @@ if s is not None:
     xx, yy = np.meshgrid(x, y, indexing="ij")
     ax.contour(xx, yy, s, levels=[0.5], colors="k")
     plt.show()
-
-fig.savefig("fig.png", bbox_inches="tight", dpi=200)
-plt.show()
