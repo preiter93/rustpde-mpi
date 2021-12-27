@@ -250,7 +250,6 @@ impl SwiftHohenberg2D {
     /// Update pde - diffusion explicit
     #[allow(dead_code)]
     fn update_explicit(&mut self) {
-
         self.zero_rhs();
 
         // Non-linear term: - theta^3
@@ -278,7 +277,6 @@ impl SwiftHohenberg2D {
 
     /// Update pde - diffusion implicit
     fn update_implicit(&mut self) {
-
         self.zero_rhs();
 
         // + old theta
