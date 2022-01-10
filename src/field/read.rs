@@ -1,6 +1,6 @@
 //! Implement reading from hdf5 file for struct Field
 use super::{BaseSpace, FieldBase};
-use crate::bases::{BaseAll, BaseR2c};
+use crate::bases::BaseKind;
 use crate::hdf5::read_from_hdf5;
 use crate::hdf5::read_from_hdf5_complex;
 use crate::hdf5::H5Type;
@@ -103,20 +103,18 @@ where
                     );
                     broadcast_2d(&x, &mut self.vhat);
                     // Renormalize Fourier base
-                    let base = &self.space.base_all()[0];
-                    match base {
-                        BaseAll::BaseR2c(b) => match b {
-                            BaseR2c::FourierR2c(_) => {
-                                let norm = A::from(
-                                    (self.vhat.shape()[0] - 1) as f64 / (x.shape()[0] - 1) as f64,
-                                )
-                                .unwrap();
-                                for v in self.vhat.iter_mut() {
-                                    v.re *= norm;
-                                    v.im *= norm;
-                                }
+                    let kind = &self.space.base_kind(0);
+                    match kind {
+                        BaseKind::FourierR2c => {
+                            let norm = A::from(
+                                (self.vhat.shape()[0] - 1) as f64 / (x.shape()[0] - 1) as f64,
+                            )
+                            .unwrap();
+                            for v in self.vhat.iter_mut() {
+                                v.re *= norm;
+                                v.im *= norm;
                             }
-                        },
+                        }
                         _ => (),
                     };
                 }

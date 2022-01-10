@@ -8,9 +8,8 @@
 //pub mod average;
 //pub mod read;
 //pub mod write;
+use crate::bases::BaseKind;
 use crate::bases::BaseSpace;
-use crate::bases::LaplacianInverse;
-use crate::bases::{BaseAll, BaseC2c, BaseR2c, BaseR2r, Basics};
 use crate::field::read::broadcast_2d;
 use crate::field::{ReadField, WriteField};
 use crate::hdf5::Result;
@@ -18,7 +17,7 @@ pub use crate::mpi::{BaseSpaceMpi, Decomp2d, Space2Mpi, Universe};
 use crate::types::FloatNum;
 use hdf5_interface::H5Type;
 use ndarray::{prelude::*, Data};
-use ndarray::{Ix, ScalarOperand, Slice};
+use ndarray::{Ix, ScalarOperand};
 use num_complex::Complex;
 use std::convert::TryInto;
 
@@ -26,45 +25,45 @@ use std::convert::TryInto;
 pub type Field2Mpi<T2, S> = FieldBaseMpi<f64, f64, T2, S, 2>;
 
 /// Field struct with mpi support
-///```
+///
 /// v: ndarray
-///```
+///
 ///   Holds data in physical space
-///```
+///
 /// vhat: ndarray
-///```
+///
 ///   Holds data in spectral space
-///```
+///
 /// v_x_pen: ndarray
-///```
+///
 ///   Holds local data in physical space, distributed as x-pencil
 ///   across processors
-///```
+///
 /// v_y_pen: ndarray
-///```
+///
 ///   Holds local data in physical space, distributed as y-pencil
 ///   across processors
-///```
+///
 /// vhat_x_pen: ndarray
-///```
+///
 ///   Holds local data in spectral space, distributed as x-pencil
 ///   across processors
-///```
+///
 /// vhat_y_pen: ndarray
-///```
+///
 ///   Holds local data in spectral space, distributed as y-pencil
 ///   across processors
-///```
+///
 /// x: list of ndarrays
-///```
+///
 ///   Grid points (physical space)
-///```
+///
 /// dx: list of ndarrays
-///```
+///
 ///   Grid points deltas (physical space)
-///```
+///
 /// solvers: HashMap<String, `SolverField`>
-///```
+///
 ///  Add plans for various equations
 ///
 /// `FieldBase` is derived from `SpaceBase` struct,
@@ -206,17 +205,17 @@ where
     fn is_periodic(space: &S) -> [bool; N] {
         let mut is_periodic: Vec<bool> = Vec::new();
         for axis in 0..N {
-            let x = &space.base_all()[axis];
-            let is_periodic_axis = match x {
-                BaseAll::BaseR2r(ref b) => match b {
-                    BaseR2r::Chebyshev(_) | BaseR2r::CompositeChebyshev(_) => false,
-                },
-                BaseAll::BaseR2c(ref b) => match b {
-                    BaseR2c::FourierR2c(_) => true,
-                },
-                BaseAll::BaseC2c(ref b) => match b {
-                    BaseC2c::FourierC2c(_) => true,
-                },
+            let kind = space.base_kind(axis);
+
+            let is_periodic_axis = match kind {
+                BaseKind::Chebyshev
+                | BaseKind::ChebDirichlet
+                | BaseKind::ChebNeumann
+                | BaseKind::ChebDirichletBc
+                | BaseKind::ChebNeumannBc
+                | BaseKind::ChebDirichletNeumann => false,
+                BaseKind::FourierR2c | BaseKind::FourierC2c => true,
+                // _ => panic!("Unknown Base kind: {}!", kind),
             };
             is_periodic.push(is_periodic_axis);
         }
@@ -231,36 +230,26 @@ where
     /// This function returns I (`mat_a`), D2 (`mat_b`) and
     /// the optional preconditionar A for a given base.
     pub fn ingredients_for_hholtz(&self, axis: usize) -> (Array2<A>, Array2<A>, Option<Array2<A>>) {
-        let x = &self.space.base_all()[axis];
-        let mass = x.mass();
-        let lap = x.laplace();
-        let peye = x.laplace_inv_eye();
-        let pinv = peye.dot(&x.laplace_inv());
+        let kind = self.space.base_kind(axis);
+        let mass = self.space.mass(axis);
+        let lap = self.space.laplace(axis);
 
-        // Matrices
-        let (mat_a, mat_b) = match x {
-            BaseAll::BaseR2r(ref b) => match b {
-                BaseR2r::Chebyshev(_) => {
-                    let mass_sliced = mass.slice_axis(Axis(1), Slice::from(2..));
-                    (pinv.dot(&mass_sliced), peye.dot(&mass_sliced))
-                }
-                BaseR2r::CompositeChebyshev(_) => (pinv.dot(&mass), peye.dot(&mass)),
-            },
-            BaseAll::BaseR2c(ref b) => match b {
-                BaseR2c::FourierR2c(_) => (mass, lap),
-            },
-            BaseAll::BaseC2c(ref b) => match b {
-                BaseC2c::FourierC2c(_) => (mass, lap),
-            },
-        };
-        // Preconditioner (optional)
-        let precond = match x {
-            BaseAll::BaseR2r(ref b) => match b {
-                BaseR2r::Chebyshev(_) | BaseR2r::CompositeChebyshev(_) => Some(pinv),
-            },
-            BaseAll::BaseR2c(_) | BaseAll::BaseC2c(_) => None,
-        };
-        (mat_a, mat_b, precond)
+        // Matrices and optional preconditioner
+        match kind {
+            BaseKind::Chebyshev => {
+                let peye = self.space.laplace_inv_eye(axis);
+                let pinv = peye.dot(&self.space.laplace_inv(axis));
+                let mass_sliced = mass.slice(s![.., 2..]);
+                (pinv.dot(&mass_sliced), peye.dot(&mass_sliced), Some(pinv))
+            }
+            BaseKind::ChebDirichlet | BaseKind::ChebNeumann | BaseKind::ChebDirichletNeumann => {
+                let peye = self.space.laplace_inv_eye(axis);
+                let pinv = peye.dot(&self.space.laplace_inv(axis));
+                (pinv.dot(&mass), peye.dot(&mass), Some(pinv))
+            }
+            BaseKind::FourierR2c | BaseKind::FourierC2c => (mass, lap, None),
+            _ => panic!("No ingredients found for Base kind: {}!", kind),
+        }
     }
 
     /// Poisson equation: D2 vhat = A f
@@ -274,19 +263,21 @@ where
         &self,
         axis: usize,
     ) -> (Array2<A>, Array2<A>, Option<Array2<A>>, bool) {
-        let x = &self.space.base_all()[axis];
-
         // Matrices and preconditioner
         let (mat_a, mat_b, precond) = self.ingredients_for_hholtz(axis);
 
         // Boolean, if laplacian is already diagonal
         // if not, a eigendecomposition will diagonalize mat a,
         // however, this is more expense.
-        let is_diag = match x {
-            BaseAll::BaseR2r(_) => false,
-            BaseAll::BaseR2c(_) | BaseAll::BaseC2c(_) => true,
+        let kind = self.space.base_kind(axis);
+        let is_diag = match kind {
+            BaseKind::Chebyshev
+            | BaseKind::ChebDirichlet
+            | BaseKind::ChebNeumann
+            | BaseKind::ChebDirichletNeumann => false,
+            BaseKind::FourierR2c | BaseKind::FourierC2c => true,
+            _ => panic!("No ingredients found for Base kind: {}!", kind),
         };
-
         (mat_a, mat_b, precond, is_diag)
     }
 }
@@ -508,20 +499,18 @@ where
                     );
                     broadcast_2d(&x, &mut self.vhat);
                     // Renormalize Fourier base
-                    let base = &self.space.base_all()[0];
-                    match base {
-                        BaseAll::BaseR2c(b) => match b {
-                            BaseR2c::FourierR2c(_) => {
-                                let norm = A::from(
-                                    (self.vhat.shape()[0] - 1) as f64 / (x.shape()[0] - 1) as f64,
-                                )
-                                .unwrap();
-                                for v in self.vhat.iter_mut() {
-                                    v.re *= norm;
-                                    v.im *= norm;
-                                }
+                    let kind = &self.space.base_kind(0);
+                    match kind {
+                        BaseKind::FourierR2c => {
+                            let norm = A::from(
+                                (self.vhat.shape()[0] - 1) as f64 / (x.shape()[0] - 1) as f64,
+                            )
+                            .unwrap();
+                            for v in self.vhat.iter_mut() {
+                                v.re *= norm;
+                                v.im *= norm;
                             }
-                        },
+                        }
                         _ => (),
                     };
                 }

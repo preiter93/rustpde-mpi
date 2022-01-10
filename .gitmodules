@@ -1,0 +1,3 @@
+[submodule "funspace-mpi"]
+	path = funspace-mpi
+	url = https://github.com/preiter93/funspace-mpi.git

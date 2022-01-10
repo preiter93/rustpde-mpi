@@ -101,6 +101,8 @@ dependencies = [
 [[package]]
 name = "build-probe-mpi"
 version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f4d5ddc2cdf4852ffc94a5f68c41cd4a0c8164984725a2435d9d2e8763edad88"
 dependencies = [
  "pkg-config",
 ]
@@ -364,14 +366,14 @@ dependencies = [
 
 [[package]]
 name = "funspace"
-version = "0.2.6"
+version = "0.3.0"
 dependencies = [
  "enum_dispatch",
+ "mpi-decomp",
  "ndarray",
  "ndrustfft",
  "num-complex 0.4.0",
  "num-traits",
- "rsmpi-decomp",
 ]
 
 [[package]]
@@ -645,26 +647,27 @@ dependencies = [
 ]
 
 [[package]]
-name = "mpi-custom"
-version = "0.6.0"
+name = "mpi-decomp"
+version = "0.1.1"
 dependencies = [
- "build-probe-mpi",
- "conv",
- "libffi",
- "memoffset",
- "mpi-sys",
- "num-complex 0.4.0",
- "once_cell",
- "smallvec",
+ "mpi-fork-fnsp",
+ "ndarray",
+ "num-traits",
 ]
 
 [[package]]
-name = "mpi-sys"
-version = "0.2.0"
+name = "mpi-fork-fnsp"
+version = "0.6.0"
 dependencies = [
  "bindgen",
  "build-probe-mpi",
  "cc",
+ "conv",
+ "libffi",
+ "memoffset",
+ "num-complex 0.4.0",
+ "once_cell",
+ "smallvec",
 ]
 
 [[package]]
@@ -1056,15 +1059,6 @@ name = "regex-syntax"
 version = "0.6.25"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f497285884f3fcff424ffc933e56d7cbca511def0c9831a7f9b5f6153e3cc89b"
-
-[[package]]
-name = "rsmpi-decomp"
-version = "0.1.0"
-dependencies = [
- "mpi-custom",
- "ndarray",
- "num-traits",
-]
 
 [[package]]
 name = "rustc-hash"
