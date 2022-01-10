@@ -50,10 +50,10 @@ impl<const N: usize> HholtzAdi<f64, N> {
         let mut solver: Vec<Solver<f64>> = Vec::new();
         let mut matvec: Vec<Option<MatVec<f64>>> = Vec::new();
         for (axis, ci) in c.iter().enumerate() {
-            let base_kind = field.space.base_kind(axis);
             // Matrices and preconditioner
             let (mat_a, mat_b, precond) = field.ingredients_for_hholtz(axis);
             let mat: Array2<f64> = mat_a - mat_b * *ci;
+            let base_kind = field.space.base_kind(axis);
             let solver_axis = match base_kind {
                 BaseKind::Chebyshev | BaseKind::ChebDirichlet | BaseKind::ChebNeumann => {
                     Solver::FdmaPar(FdmaPar::from_matrix(&mat))
@@ -63,7 +63,6 @@ impl<const N: usize> HholtzAdi<f64, N> {
                 }
                 _ => panic!("No solver found for Base kind: {}!", base_kind),
             };
-
             let matvec_axis = precond.map(|x| MatVec::MatVecFdmaPar(MatVecFdmaPar::new(&x)));
 
             solver.push(solver_axis);

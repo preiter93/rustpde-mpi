@@ -27,10 +27,11 @@
 //! of D2 (B2). In this case, the second equation is
 //! solved, with A = B2.
 #![allow(clippy::shadow_unrelated)]
+use crate::bases::BaseKind;
 use crate::bases::BaseSpace;
 use crate::field_mpi::FieldBaseMpi;
 use crate::mpi::{BaseSpaceMpi, Equivalence};
-use crate::solver::{Fdma, MatVec, MatVecFdma, Solve, SolveReturn, Solver, SolverScalar};
+use crate::solver::{Fdma, MatVec, MatVecFdma, Sdma, Solve, SolveReturn, Solver, SolverScalar};
 use ndarray::{Array2, ArrayBase, Data, DataMut, Ix2};
 use std::ops::{Add, Div, Mul};
 /// Container for `HholtzAdi`
@@ -58,7 +59,16 @@ where
             // Matrices and preconditioner
             let (mat_a, mat_b, precond) = field.ingredients_for_hholtz(axis);
             let mat: Array2<f64> = mat_a - mat_b * *ci;
-            let solver_axis = Solver::Fdma(Fdma::from_matrix(&mat));
+            let base_kind = field.space.base_kind(axis);
+            let solver_axis = match base_kind {
+                BaseKind::Chebyshev | BaseKind::ChebDirichlet | BaseKind::ChebNeumann => {
+                    Solver::Fdma(Fdma::from_matrix(&mat))
+                }
+                BaseKind::FourierR2c | BaseKind::FourierC2c => {
+                    Solver::Sdma(Sdma::from_matrix(&mat))
+                }
+                _ => panic!("No solver found for Base kind: {}!", base_kind),
+            };
             let matvec_axis = precond.map(|x| MatVec::MatVecFdma(MatVecFdma::new(&x)));
 
             solver.push(solver_axis);
