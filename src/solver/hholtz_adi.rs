@@ -20,9 +20,10 @@
 //! of D2 (B2). In this case, the second equation is
 //! solved, with A = B2.
 use super::{MatVec, MatVecFdmaPar, Solver, SolverScalar};
+use crate::bases::BaseKind;
 use crate::bases::BaseSpace;
 use crate::field::FieldBase;
-use crate::solver::{FdmaPar, Solve, SolveReturn};
+use crate::solver::{FdmaPar, SdmaPar, Solve, SolveReturn};
 use ndarray::prelude::*;
 use ndarray::{Data, DataMut};
 use std::ops::{Add, Div, Mul};
@@ -33,7 +34,7 @@ pub struct HholtzAdi<T, const N: usize>
 // where
 //     T: SolverScalar,
 {
-    solver: Vec<Solver<T>>,
+    pub solver: Vec<Solver<T>>,
     matvec: Vec<Option<MatVec<T>>>,
 }
 
@@ -49,10 +50,20 @@ impl<const N: usize> HholtzAdi<f64, N> {
         let mut solver: Vec<Solver<f64>> = Vec::new();
         let mut matvec: Vec<Option<MatVec<f64>>> = Vec::new();
         for (axis, ci) in c.iter().enumerate() {
+            let base_kind = field.space.base_kind(axis);
             // Matrices and preconditioner
             let (mat_a, mat_b, precond) = field.ingredients_for_hholtz(axis);
             let mat: Array2<f64> = mat_a - mat_b * *ci;
-            let solver_axis = Solver::FdmaPar(FdmaPar::from_matrix(&mat));
+            let solver_axis = match base_kind {
+                BaseKind::Chebyshev | BaseKind::ChebDirichlet | BaseKind::ChebNeumann => {
+                    Solver::FdmaPar(FdmaPar::from_matrix(&mat))
+                }
+                BaseKind::FourierR2c | BaseKind::FourierC2c => {
+                    Solver::SdmaPar(SdmaPar::from_matrix(&mat))
+                }
+                _ => panic!("No solver found for Base kind: {}!", base_kind),
+            };
+
             let matvec_axis = precond.map(|x| MatVec::MatVecFdmaPar(MatVecFdmaPar::new(&x)));
 
             solver.push(solver_axis);

@@ -9,6 +9,8 @@ pub mod hholtz;
 pub mod hholtz_adi;
 pub mod matvec;
 pub mod poisson;
+pub mod sdma;
+pub mod sdma_par;
 pub mod tdma;
 pub mod utils;
 pub use fdma::Fdma;
@@ -20,6 +22,8 @@ pub use matvec::{MatVec, MatVecDot, MatVecFdma, MatVecFdmaPar};
 use ndarray::{Array, ArrayBase, Data, DataMut};
 use num_complex::Complex;
 pub use poisson::Poisson;
+pub use sdma::Sdma;
+pub use sdma_par::SdmaPar;
 pub use tdma::Tdma;
 use utils::diag;
 //use crate::derive_solve_enum;
@@ -77,8 +81,12 @@ pub trait SolveReturn<A, D> {
 
 /// Collection of Linalg Solver, must work for unlimited number of dimensions
 #[allow(clippy::large_enum_variant)]
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum Solver<T> {
+    /// Single-diagonal Solver
+    Sdma(Sdma<T>),
+    /// Single-diagonal Solver (Parallel iterator for ndim > 1)
+    SdmaPar(SdmaPar<T>),
     /// Two-diagonal Solver
     Tdma(Tdma<T>),
     /// Four-diagonal Solver
@@ -114,6 +122,8 @@ where
         S2: Data<Elem = A> + DataMut,
     {
         match self {
+            Self::Sdma(ref t) => t.solve(input, output, axis),
+            Self::SdmaPar(ref t) => t.solve(input, output, axis),
             Self::Tdma(ref t) => t.solve(input, output, axis),
             Self::Fdma(ref t) => t.solve(input, output, axis),
             Self::FdmaPar(ref t) => t.solve(input, output, axis),
