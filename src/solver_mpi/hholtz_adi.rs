@@ -50,6 +50,9 @@ where
     /// Construct Helmholtz solver from field:
     ///
     ///  (I-c*D2) vhat = A f
+    ///
+    /// # Panics
+    /// If no solver type is defined for a given base.
     pub fn new(field: &FieldBaseMpi<f64, f64, T2, S, N>, c: [f64; N]) -> Self {
         // Gather matrices and preconditioner
         let mut solver: Vec<Solver<f64>> = Vec::new();
@@ -136,5 +139,17 @@ where
         // Transpose y->x
         dcp.transpose_y_to_x(&buf_ypen, &mut buf_xpen);
         self.solver[0].solve(&buf_xpen, output, 0);
+    }
+
+    fn solve_par<S1, S2>(
+        &self,
+        input: &ArrayBase<S1, Ix2>,
+        output: &mut ArrayBase<S2, Ix2>,
+        axis: usize,
+    ) where
+        S1: ndarray::Data<Elem = A>,
+        S2: ndarray::Data<Elem = A> + ndarray::DataMut,
+    {
+        unimplemented!("Parallel solve not implemented!");
     }
 }

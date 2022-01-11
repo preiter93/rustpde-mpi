@@ -40,5 +40,5 @@ fn main2() {
     println!("{:?}", mat_b);
 
     let solver = HholtzAdi::new(&field, [0.1, 0.1]);
-    println!("{:?}", solver.solver[0]);
+    // println!("{:?}", solver.solver[0]);
 }

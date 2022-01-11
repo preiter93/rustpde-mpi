@@ -1,7 +1,7 @@
 //! Simulate Rayleigh-Benard Convection two dimensional
 //! in a periodic domain
 //!
-//! cargo run --release --example navier_rbc
+//! cargo run --release --example navier_rbc_periodic
 use rustpde::integrate;
 use rustpde::navier_stokes::Navier2D;
 // use rustpde::Integrate;
@@ -19,5 +19,5 @@ fn main() {
     // Set initial conditions
     navier.set_velocity(0.2, 1., 1.);
     navier.set_temperature(0.2, 1., 1.);
-    integrate(&mut navier, 10., Some(1.0));
+    integrate(&mut navier, 10., Some(5.0));
 }

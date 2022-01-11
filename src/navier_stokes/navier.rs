@@ -36,7 +36,7 @@ use crate::bases::{cheb_dirichlet, cheb_neumann, chebyshev, fourier_r2c};
 use crate::bases::{BaseR2c, BaseR2r};
 use crate::field::{BaseSpace, Field2, ReadField, Space2, WriteField};
 use crate::hdf5::{read_scalar_from_hdf5, write_scalar_to_hdf5, Result};
-use crate::solver::{Hholtz, HholtzAdi, Poisson, Solve, SolverField};
+use crate::solver::{HholtzAdi, Poisson, Solve, SolverField};
 use crate::types::Scalar;
 use crate::Integrate;
 use ndarray::Array2;
@@ -346,15 +346,15 @@ impl Navier2D<Complex<f64>, Space2R2c>
         // fields for derivatives
         let field = Field2::new(&Space2::new(&fourier_r2c(nx), &chebyshev(ny)));
         // define solver
-        let solver_ux = SolverField::Hholtz(Hholtz::new(
+        let solver_ux = SolverField::HholtzAdi(HholtzAdi::new(
             &ux,
             [dt * nu / scale[0].powf(2.), dt * nu / scale[1].powf(2.)],
         ));
-        let solver_uy = SolverField::Hholtz(Hholtz::new(
+        let solver_uy = SolverField::HholtzAdi(HholtzAdi::new(
             &uy,
             [dt * nu / scale[0].powf(2.), dt * nu / scale[1].powf(2.)],
         ));
-        let solver_temp = SolverField::Hholtz(Hholtz::new(
+        let solver_temp = SolverField::HholtzAdi(HholtzAdi::new(
             &temp,
             [dt * ka / scale[0].powf(2.), dt * ka / scale[1].powf(2.)],
         ));
@@ -553,7 +553,7 @@ macro_rules! impl_navier_convection {
                 let conv = self.conv_ux(ux, uy);
                 self.rhs -= &(conv * self.dt);
                 // solve lhs
-                self.solver[0].solve(&self.rhs, &mut self.ux.vhat, 0);
+                self.solver[0].solve_par(&self.rhs, &mut self.ux.vhat, 0);
             }
 
             /// Solve vertical momentum equation
@@ -577,7 +577,7 @@ macro_rules! impl_navier_convection {
                 let conv = self.conv_uy(ux, uy);
                 self.rhs -= &(conv * self.dt);
                 // solve lhs
-                self.solver[1].solve(&self.rhs, &mut self.uy.vhat, 0);
+                self.solver[1].solve_par(&self.rhs, &mut self.uy.vhat, 0);
             }
 
             /// Solve temperature equation:
@@ -597,7 +597,7 @@ macro_rules! impl_navier_convection {
                 let conv = self.conv_temp(ux, uy);
                 self.rhs -= &(conv * self.dt);
                 // solve lhs
-                self.solver[2].solve(&self.rhs, &mut self.temp.vhat, 0);
+                self.solver[2].solve_par(&self.rhs, &mut self.temp.vhat, 0);
             }
 
             /// Correct velocity field.
@@ -636,7 +636,7 @@ macro_rules! impl_navier_convection {
             /// pseu: pseudo pressure ( in code it is pres\[1\] )
             fn solve_pres(&mut self, f: &Array2<Self::Spectral>) {
                 //self.pres[1].vhat.assign(&self.solver[3].solve(&f));
-                self.solver[3].solve(&f, &mut self.pres[1].vhat, 0);
+                self.solver[3].solve_par(&f, &mut self.pres[1].vhat, 0);
                 // Singularity
                 self.pres[1].vhat[[0, 0]] = Self::Spectral::zero();
             }

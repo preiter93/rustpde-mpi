@@ -26,45 +26,41 @@ pub type Field2Mpi<T2, S> = FieldBaseMpi<f64, f64, T2, S, 2>;
 
 /// Field struct with mpi support
 ///
-/// v: ndarray
+/// `v`: ndarray
 ///
 ///   Holds data in physical space
 ///
-/// vhat: ndarray
+/// `vhat`: ndarray
 ///
 ///   Holds data in spectral space
 ///
-/// v_x_pen: ndarray
+/// `v_x_pen`: ndarray
 ///
 ///   Holds local data in physical space, distributed as x-pencil
 ///   across processors
 ///
-/// v_y_pen: ndarray
+/// `v_y_pen`: ndarray
 ///
 ///   Holds local data in physical space, distributed as y-pencil
 ///   across processors
 ///
-/// vhat_x_pen: ndarray
+/// `vhat_x_pen`: ndarray
 ///
 ///   Holds local data in spectral space, distributed as x-pencil
 ///   across processors
 ///
-/// vhat_y_pen: ndarray
+/// `vhat_y_pen`: ndarray
 ///
 ///   Holds local data in spectral space, distributed as y-pencil
 ///   across processors
 ///
-/// x: list of ndarrays
+/// `x`: list of ndarrays
 ///
 ///   Grid points (physical space)
 ///
-/// dx: list of ndarrays
+/// `dx`: list of ndarrays
 ///
 ///   Grid points deltas (physical space)
-///
-/// solvers: HashMap<String, `SolverField`>
-///
-///  Add plans for various equations
 ///
 /// `FieldBase` is derived from `SpaceBase` struct,
 /// defined in the `funspace` crate.
@@ -95,8 +91,6 @@ pub struct FieldBaseMpi<A, T1, T2, S, const N: usize> {
     pub x: [Array1<A>; N],
     /// Grid deltas
     pub dx: [Array1<A>; N],
-    // /// Collection of numerical solvers (Poisson, Hholtz, ...)
-    // pub solvers: HashMap<String, SolverField<T, N>>,
 }
 
 impl<A, T1, T2, S, const N: usize> FieldBaseMpi<A, T1, T2, S, N>
@@ -229,6 +223,9 @@ where
     ///
     /// This function returns I (`mat_a`), D2 (`mat_b`) and
     /// the optional preconditionar A for a given base.
+    ///
+    /// # Panics
+    /// If ingredients are not defined for a given base.
     pub fn ingredients_for_hholtz(&self, axis: usize) -> (Array2<A>, Array2<A>, Option<Array2<A>>) {
         let kind = self.space.base_kind(axis);
         let mass = self.space.mass(axis);
@@ -259,6 +256,9 @@ where
     /// The mass matrix I is only used in multidimensional
     /// problems when D2 is not diagonal. This function
     /// also returns a hint, if D2 is diagonal.
+    ///
+    /// # Panics
+    /// If ingredients are not defined for a given base.
     pub fn ingredients_for_poisson(
         &self,
         axis: usize,

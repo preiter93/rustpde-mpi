@@ -19,11 +19,11 @@
 //! banded after multiplication with the pseudoinverse
 //! of D2 (B2). In this case, the second equation is
 //! solved, with A = B2.
-use super::{MatVec, MatVecFdmaPar, Solver, SolverScalar};
+use super::{MatVec, MatVecFdma, Solver, SolverScalar};
 use crate::bases::BaseKind;
 use crate::bases::BaseSpace;
 use crate::field::FieldBase;
-use crate::solver::{FdmaPar, SdmaPar, Solve, SolveReturn};
+use crate::solver::{Fdma, Sdma, Solve, SolveReturn};
 use ndarray::prelude::*;
 use ndarray::{Data, DataMut};
 use std::ops::{Add, Div, Mul};
@@ -34,7 +34,7 @@ pub struct HholtzAdi<T, const N: usize>
 // where
 //     T: SolverScalar,
 {
-    pub solver: Vec<Solver<T>>,
+    solver: Vec<Solver<T>>,
     matvec: Vec<Option<MatVec<T>>>,
 }
 
@@ -42,6 +42,9 @@ impl<const N: usize> HholtzAdi<f64, N> {
     /// Construct Helmholtz solver from field:
     ///
     ///  (I-c*D2) vhat = A f
+    ///
+    /// # Panics
+    /// If no solver type is defined for a given base.
     pub fn new<T2, S>(field: &FieldBase<f64, f64, T2, S, N>, c: [f64; N]) -> Self
     where
         S: BaseSpace<f64, N, Physical = f64, Spectral = T2>,
@@ -56,14 +59,14 @@ impl<const N: usize> HholtzAdi<f64, N> {
             let base_kind = field.space.base_kind(axis);
             let solver_axis = match base_kind {
                 BaseKind::Chebyshev | BaseKind::ChebDirichlet | BaseKind::ChebNeumann => {
-                    Solver::FdmaPar(FdmaPar::from_matrix(&mat))
+                    Solver::Fdma(Fdma::from_matrix(&mat))
                 }
                 BaseKind::FourierR2c | BaseKind::FourierC2c => {
-                    Solver::SdmaPar(SdmaPar::from_matrix(&mat))
+                    Solver::Sdma(Sdma::from_matrix(&mat))
                 }
                 _ => panic!("No solver found for Base kind: {}!", base_kind),
             };
-            let matvec_axis = precond.map(|x| MatVec::MatVecFdmaPar(MatVecFdmaPar::new(&x)));
+            let matvec_axis = precond.map(|x| MatVec::MatVecFdma(MatVecFdma::new(&x)));
 
             solver.push(solver_axis);
             matvec.push(matvec_axis);
@@ -79,7 +82,6 @@ where
     T: SolverScalar,
     A: SolverScalar + Div<T, Output = A> + Mul<T, Output = A> + Add<T, Output = A> + From<T>,
 {
-    /// # Example
     fn solve<S1, S2>(
         &self,
         input: &ArrayBase<S1, Ix1>,
@@ -94,6 +96,23 @@ where
             self.solver[0].solve(&buffer, output, 0);
         } else {
             self.solver[0].solve(input, output, 0);
+        }
+    }
+
+    fn solve_par<S1, S2>(
+        &self,
+        input: &ArrayBase<S1, Ix1>,
+        output: &mut ArrayBase<S2, Ix1>,
+        axis: usize,
+    ) where
+        S1: Data<Elem = A>,
+        S2: Data<Elem = A> + DataMut,
+    {
+        if let Some(matvec) = &self.matvec[0] {
+            let buffer = matvec.solve_par(input, 0);
+            self.solver[0].solve_par(&buffer, output, 0);
+        } else {
+            self.solver[0].solve_par(input, output, 0);
         }
     }
 }
@@ -122,21 +141,31 @@ where
             rhs = x.solve(&rhs, 1);
         }
 
-        // // Matvec
-        // let rhs = if let Some(x) = &self.matvec[0] {
-        //     x.solve(&input, 0)
-        // } else {
-        //     input.to_owned()
-        // };
-        // let rhs = if let Some(x) = &self.matvec[1] {
-        //     x.solve(&rhs, 1)
-        // } else {
-        //     rhs
-        // };
-
         // Solve
         self.solver[0].solve(&rhs, output, 0);
         self.solver[1].solve(&output.to_owned(), output, 1);
+    }
+
+    fn solve_par<S1, S2>(
+        &self,
+        input: &ArrayBase<S1, Ix2>,
+        output: &mut ArrayBase<S2, Ix2>,
+        axis: usize,
+    ) where
+        S1: Data<Elem = A>,
+        S2: Data<Elem = A> + DataMut,
+    {
+        // Matvec
+        let mut rhs = self.matvec[0]
+            .as_ref()
+            .map_or_else(|| input.to_owned(), |x| x.solve_par(input, 0));
+        if let Some(x) = &self.matvec[1] {
+            rhs = x.solve_par(&rhs, 1);
+        }
+
+        // Solve
+        self.solver[0].solve_par(&rhs, output, 0);
+        self.solver[1].solve_par(&output.to_owned(), output, 1);
     }
 }
 

@@ -126,6 +126,23 @@ where
             self.solver.solve(input, output, 0);
         }
     }
+
+    fn solve_par<S1, S2>(
+        &self,
+        input: &ArrayBase<S1, Ix1>,
+        output: &mut ArrayBase<S2, Ix1>,
+        axis: usize,
+    ) where
+        S1: ndarray::Data<Elem = A>,
+        S2: ndarray::Data<Elem = A> + ndarray::DataMut,
+    {
+        if let Some(matvec) = &self.matvec[0] {
+            let buffer = matvec.solve_par(input, 0);
+            self.solver.solve_par(&buffer, output, 0);
+        } else {
+            self.solver.solve_par(input, output, 0);
+        }
+    }
 }
 
 #[allow(unused_variables)]
@@ -156,6 +173,18 @@ where
         };
         // Solve fdma-tensor
         self.solver.solve(&rhs, output, 0);
+    }
+
+    fn solve_par<S1, S2>(
+        &self,
+        input: &ArrayBase<S1, Ix2>,
+        output: &mut ArrayBase<S2, Ix2>,
+        axis: usize,
+    ) where
+        S1: ndarray::Data<Elem = A>,
+        S2: ndarray::Data<Elem = A> + ndarray::DataMut,
+    {
+        unimplemented!("Parallel solve not implemented!");
     }
 }
 

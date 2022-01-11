@@ -25,6 +25,7 @@ use crate::field::FieldBase;
 use crate::solver::utils::vec_to_array;
 use crate::solver::{FdmaTensor, Solve, SolveReturn};
 use ndarray::prelude::*;
+use ndarray::Zip;
 use std::ops::{Add, Div, Mul};
 
 /// Container for Poisson Solver
@@ -116,6 +117,23 @@ where
             self.solver.solve(input, output, 0);
         }
     }
+
+    fn solve_par<S1, S2>(
+        &self,
+        input: &ArrayBase<S1, Ix1>,
+        output: &mut ArrayBase<S2, Ix1>,
+        axis: usize,
+    ) where
+        S1: ndarray::Data<Elem = A>,
+        S2: ndarray::Data<Elem = A> + ndarray::DataMut,
+    {
+        if let Some(matvec) = &self.matvec[0] {
+            let buffer = matvec.solve_par(input, 0);
+            self.solver.solve_par(&buffer, output, 0);
+        } else {
+            self.solver.solve_par(input, output, 0);
+        }
+    }
 }
 
 #[allow(unused_variables)]
@@ -137,15 +155,81 @@ where
         S1: ndarray::Data<Elem = A>,
         S2: ndarray::Data<Elem = A> + ndarray::DataMut,
     {
-        // Matvec
+        // Precondition axis 0 (optional)
         let mut rhs = self.matvec[0]
             .as_ref()
             .map_or_else(|| input.to_owned(), |x| x.solve(input, 0));
+        // Precondition axis 1 (optional)
         if let Some(x) = &self.matvec[1] {
             rhs = x.solve(&rhs, 1);
         };
-        // Solve fdma-tensor
-        self.solver.solve(&rhs, output, 0);
+
+        // Step 1: Forward Transform rhs along x
+        if let Some(p) = &self.solver.fwd[0] {
+            let p_cast: Array2<A> = p.mapv(|x| x.into());
+            output.assign(&p_cast.dot(&rhs));
+        } else {
+            output.assign(&rhs);
+        }
+
+        // Step 2: Solve along y (but iterate over all lanes in x)
+        Zip::from(output.outer_iter_mut())
+            .and(self.solver.lam[0].outer_iter())
+            .for_each(|mut out, lam| {
+                let l = lam.as_slice().unwrap()[0] + self.solver.alpha;
+                let mut fdma = &self.solver.fdma[0] + &(&self.solver.fdma[1] * l);
+                fdma.sweep();
+                fdma.solve(&out.to_owned(), &mut out, 0);
+            });
+
+        // Step 3: Backward Transform solution along x
+        if let Some(q) = &self.solver.bwd[0] {
+            let q_cast: Array2<A> = q.mapv(|x| x.into());
+            output.assign(&q_cast.dot(output));
+        }
+    }
+
+    fn solve_par<S1, S2>(
+        &self,
+        input: &ArrayBase<S1, Ix2>,
+        output: &mut ArrayBase<S2, Ix2>,
+        axis: usize,
+    ) where
+        S1: ndarray::Data<Elem = A>,
+        S2: ndarray::Data<Elem = A> + ndarray::DataMut,
+    {
+        // Precondition axis 0 (optional)
+        let mut rhs = self.matvec[0]
+            .as_ref()
+            .map_or_else(|| input.to_owned(), |x| x.solve_par(input, 0));
+        // Precondition axis 1 (optional)
+        if let Some(x) = &self.matvec[1] {
+            rhs = x.solve_par(&rhs, 1);
+        };
+
+        // Step 1: Forward Transform rhs along x
+        if let Some(p) = &self.solver.fwd[0] {
+            let p_cast: Array2<A> = p.mapv(|x| x.into());
+            output.assign(&p_cast.dot(&rhs));
+        } else {
+            output.assign(&rhs);
+        }
+
+        // Step 2: Solve along y (but iterate over all lanes in x)
+        Zip::from(output.outer_iter_mut())
+            .and(self.solver.lam[0].outer_iter())
+            .par_for_each(|mut out, lam| {
+                let l = lam.as_slice().unwrap()[0] + self.solver.alpha;
+                let mut fdma = &self.solver.fdma[0] + &(&self.solver.fdma[1] * l);
+                fdma.sweep();
+                fdma.solve(&out.to_owned(), &mut out, 0);
+            });
+
+        // Step 3: Backward Transform solution along x
+        if let Some(q) = &self.solver.bwd[0] {
+            let q_cast: Array2<A> = q.mapv(|x| x.into());
+            output.assign(&q_cast.dot(output));
+        }
     }
 }
 

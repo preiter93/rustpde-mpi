@@ -159,4 +159,16 @@ where
             output.assign(&q_cast.dot(output));
         }
     }
+
+    fn solve_par<S1, S2>(
+        &self,
+        input: &ArrayBase<S1, Ix2>,
+        output: &mut ArrayBase<S2, Ix2>,
+        axis: usize,
+    ) where
+        S1: ndarray::Data<Elem = A>,
+        S2: ndarray::Data<Elem = A> + ndarray::DataMut,
+    {
+        unimplemented!("Parallel solve not implemented!");
+    }
 }

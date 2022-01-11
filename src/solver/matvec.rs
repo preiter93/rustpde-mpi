@@ -15,8 +15,6 @@ pub enum MatVec<T> {
     MatVecDot(MatVecDot<T>),
     /// Banded Matrix Vector Product with offsets -2, 0, 2, 4
     MatVecFdma(MatVecFdma<T>),
-    /// Banded Matrix Vector Product with offsets -2, 0, 2, 4 (Parallel iterator)
-    MatVecFdmaPar(MatVecFdmaPar<T>),
 }
 
 // Don't know how to use enum_dispatch with
@@ -33,7 +31,16 @@ where
         match self {
             MatVec::MatVecDot(ref t) => t.solve(input, axis),
             MatVec::MatVecFdma(ref t) => t.solve(input, axis),
-            MatVec::MatVecFdmaPar(ref t) => t.solve(input, axis),
+        }
+    }
+
+    fn solve_par<S1>(&self, input: &ArrayBase<S1, Ix1>, axis: usize) -> Array<A, Ix1>
+    where
+        S1: Data<Elem = A>,
+    {
+        match self {
+            MatVec::MatVecDot(ref t) => t.solve_par(input, axis),
+            MatVec::MatVecFdma(ref t) => t.solve_par(input, axis),
         }
     }
 }
@@ -50,7 +57,16 @@ where
         match self {
             MatVec::MatVecDot(ref t) => t.solve(input, axis),
             MatVec::MatVecFdma(ref t) => t.solve(input, axis),
-            MatVec::MatVecFdmaPar(ref t) => t.solve(input, axis),
+        }
+    }
+
+    fn solve_par<S1>(&self, input: &ArrayBase<S1, Ix2>, axis: usize) -> Array<A, Ix2>
+    where
+        S1: Data<Elem = A>,
+    {
+        match self {
+            MatVec::MatVecDot(ref t) => t.solve_par(input, axis),
+            MatVec::MatVecFdma(ref t) => t.solve_par(input, axis),
         }
     }
 }
@@ -103,6 +119,13 @@ where
         let mat_new = self.mat_into();
         mat_new.dot(input)
     }
+
+    fn solve_par<S1>(&self, input: &ArrayBase<S1, Ix1>, axis: usize) -> Array<A, Ix1>
+    where
+        S1: Data<Elem = A>,
+    {
+        unimplemented!("Parallel solve not implemented!");
+    }
 }
 
 #[allow(unused_variables)]
@@ -122,6 +145,13 @@ where
             let rv: Array<A, Ix2> = mat_new.dot(&input.t());
             rv.t().to_owned()
         }
+    }
+
+    fn solve_par<S1>(&self, input: &ArrayBase<S1, Ix2>, axis: usize) -> Array<A, Ix2>
+    where
+        S1: Data<Elem = A>,
+    {
+        unimplemented!("Parallel solve not implemented!");
     }
 }
 
@@ -212,6 +242,15 @@ where
         self.solve_lane(input, &mut output);
         output
     }
+
+    fn solve_par<S1>(&self, input: &ArrayBase<S1, Ix1>, axis: usize) -> Array<A, Ix1>
+    where
+        S1: Data<Elem = A>,
+    {
+        let mut output = Array1::zeros(self.m);
+        self.solve_lane(input, &mut output);
+        output
+    }
 }
 
 impl<T, A> SolveReturn<A, Ix2> for MatVecFdma<T>
@@ -234,103 +273,8 @@ where
             .for_each(|mut out, inp| self.solve_lane(&inp, &mut out));
         output
     }
-}
 
-/// Use if Matrix is banded with offets -2, 0, 2, 4
-#[derive(Debug, Clone)]
-pub struct MatVecFdmaPar<T> {
-    /// Number of matrix rows
-    pub m: usize,
-    /// Number of matrix columns
-    pub n: usize,
-    /// Lower diagonal (-2)
-    pub low: Array1<T>,
-    /// Main diagonal
-    pub dia: Array1<T>,
-    /// Upper diagonal (+2)
-    pub up1: Array1<T>,
-    /// Upper diagonal (+4)
-    pub up2: Array1<T>,
-}
-
-impl<T: SolverScalar> MatVecFdmaPar<T> {
-    /// Initialize Fdma from matrix.
-    pub fn new(a: &Array2<T>) -> Self {
-        let m = a.shape()[0];
-        let n = a.shape()[1];
-        let mut low: Array1<T> = Array1::zeros(m);
-        let mut dia: Array1<T> = Array1::zeros(m);
-        let mut up1: Array1<T> = Array1::zeros(m);
-        let mut up2: Array1<T> = Array1::zeros(m);
-        for i in 0..m {
-            dia[i] = a[[i, i]];
-            if i > 1 {
-                low[i] = a[[i, i - 2]];
-            }
-            if i < m - 2 {
-                up1[i] = a[[i, i + 2]];
-            }
-            if i < m - 4 {
-                up2[i] = a[[i, i + 4]];
-            }
-        }
-
-        Self {
-            m,
-            n,
-            low,
-            dia,
-            up1,
-            up2,
-        }
-    }
-
-    fn solve_lane<S1, S2, A>(&self, input: &ArrayBase<S1, Ix1>, output: &mut ArrayBase<S2, Ix1>)
-    where
-        S1: Data<Elem = A>,
-        S2: Data<Elem = A> + DataMut,
-        A: SolverScalar + Div<T, Output = A> + Mul<T, Output = A> + Add<T, Output = A>,
-    {
-        //self.fdma(input);
-        let n = output.len();
-
-        for i in 0..n {
-            output[i] = input[i] * self.dia[i];
-            if i > 1 {
-                output[i] = output[i] + input[i - 2] * self.low[i];
-            }
-            if i < n - 2 {
-                output[i] = output[i] + input[i + 2] * self.up1[i];
-            }
-            if i < n - 4 {
-                output[i] = output[i] + input[i + 4] * self.up2[i];
-            }
-        }
-    }
-}
-
-#[allow(unused_variables)]
-impl<T, A> SolveReturn<A, Ix1> for MatVecFdmaPar<T>
-where
-    T: SolverScalar,
-    A: SolverScalar + Div<T, Output = A> + Mul<T, Output = A> + Add<T, Output = A> + From<T>,
-{
-    fn solve<S1>(&self, input: &ArrayBase<S1, Ix1>, axis: usize) -> Array<A, Ix1>
-    where
-        S1: Data<Elem = A>,
-    {
-        let mut output = Array1::zeros(self.m);
-        self.solve_lane(input, &mut output);
-        output
-    }
-}
-
-impl<T, A> SolveReturn<A, Ix2> for MatVecFdmaPar<T>
-where
-    T: SolverScalar,
-    A: SolverScalar + Div<T, Output = A> + Mul<T, Output = A> + Add<T, Output = A> + From<T>,
-{
-    fn solve<S1>(&self, input: &ArrayBase<S1, Ix2>, axis: usize) -> Array<A, Ix2>
+    fn solve_par<S1>(&self, input: &ArrayBase<S1, Ix2>, axis: usize) -> Array<A, Ix2>
     where
         S1: Data<Elem = A>,
     {

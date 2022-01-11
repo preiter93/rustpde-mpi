@@ -40,10 +40,6 @@ pub type Field2<T2, S> = FieldBase<f64, f64, T2, S, 2>;
 ///
 ///   Grid points deltas (physical space)
 ///
-/// solvers: HashMap<String, `SolverField`>
-///
-///  Add plans for various equations
-///
 /// `FieldBase` is derived from `SpaceBase` struct,
 /// defined in the `funspace` crate.
 /// It implements forward / backward transform from physical
@@ -76,8 +72,6 @@ pub struct FieldBase<A, T1, T2, S, const N: usize> {
     pub x: [Array1<A>; N],
     /// Grid deltas
     pub dx: [Array1<A>; N],
-    // /// Collection of numerical solvers (Poisson, Hholtz, ...)
-    // pub solvers: HashMap<String, SolverField<T, N>>,
 }
 
 impl<A, T1, T2, S, const N: usize> FieldBase<A, T1, T2, S, N>
@@ -192,7 +186,7 @@ where
     /// the optional preconditionar A for a given base.
     ///
     /// # Panics
-    /// If key of Base is not supported
+    /// If ingredients are not defined for a given base.
     pub fn ingredients_for_hholtz(&self, axis: usize) -> (Array2<A>, Array2<A>, Option<Array2<A>>) {
         let kind = self.space.base_kind(axis);
         let mass = self.space.mass(axis);
@@ -223,6 +217,9 @@ where
     /// The mass matrix I is only used in multidimensional
     /// problems when D2 is not diagonal. This function
     /// also returns a hint, if D2 is diagonal.
+    ///
+    /// # Panics
+    /// If ingredients are not defined for a given base.
     pub fn ingredients_for_poisson(
         &self,
         axis: usize,

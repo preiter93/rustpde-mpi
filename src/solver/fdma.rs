@@ -166,10 +166,26 @@ where
     ) {
         assert!(
             self.sweeped,
-            "Fdma: Forward sweep must be performed for solve! Abort."
+            "Fdma: Forward sweep must be performed before solve!"
         );
         output.assign(input);
         Zip::from(output.lanes_mut(Axis(axis))).for_each(|mut out| {
+            self.solve_lane(&mut out);
+        });
+    }
+
+    fn solve_par<S1: Data<Elem = A>, S2: Data<Elem = A> + DataMut>(
+        &self,
+        input: &ArrayBase<S1, D>,
+        output: &mut ArrayBase<S2, D>,
+        axis: usize,
+    ) {
+        assert!(
+            self.sweeped,
+            "Fdma: Forward sweep must be performed before solve!."
+        );
+        output.assign(input);
+        Zip::from(output.lanes_mut(Axis(axis))).par_for_each(|mut out| {
             self.solve_lane(&mut out);
         });
     }

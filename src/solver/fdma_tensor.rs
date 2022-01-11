@@ -73,7 +73,7 @@ use std::ops::{Add, Div, Mul};
 pub struct FdmaTensor<T, const N: usize> {
     /// Problem size
     pub n: usize,
-    /// One dimensional fdma solver (four diagonal sparse)
+    /// One dimensional fdma solver (banded, four diagonal)
     pub fdma: [Fdma<T>; 2],
     /// Multiply before, of size (N-1)
     pub fwd: Vec<Option<Array2<T>>>,
@@ -144,7 +144,7 @@ impl<const N: usize> FdmaTensor<f64, N> {
         };
 
         // For 1-D problems, the forward sweep
-        // can already perfomered beforehand
+        // can already perfomed beforehand
         if N == 1 {
             tensor.fdma[0].sweep();
         }
@@ -171,13 +171,21 @@ where
         axis: usize,
     ) {
         if input.shape()[0] != self.n {
-            panic!(
-                "Dimension mismatch in Tensor! Got {} vs. {}.",
-                input.len(),
-                self.n
-            );
+            panic!("Dimension mismatch! Got {} vs. {}.", input.len(), self.n);
         }
         self.fdma[0].solve(input, output, axis);
+    }
+
+    fn solve_par<S1: Data<Elem = S>, S2: Data<Elem = S> + DataMut>(
+        &self,
+        input: &ArrayBase<S1, Ix1>,
+        output: &mut ArrayBase<S2, Ix1>,
+        axis: usize,
+    ) {
+        if input.shape()[0] != self.n {
+            panic!("Dimension mismatch! Got {} vs. {}.", input.len(), self.n);
+        }
+        self.fdma[0].solve_par(input, output, axis);
     }
 }
 
@@ -193,6 +201,47 @@ where
 {
     /// Solve 2-D Problem with real in and output
     fn solve<S1: Data<Elem = S>, S2: Data<Elem = S> + DataMut>(
+        &self,
+        input: &ArrayBase<S1, Ix2>,
+        output: &mut ArrayBase<S2, Ix2>,
+        _axis: usize,
+    ) {
+        if input.shape()[0] != self.lam[0].len() || input.shape()[1] != self.n {
+            panic!(
+                "Dimension mismatch in Tensor! Got {} vs. {} (0) and {} vs. {} (1).",
+                input.shape()[0],
+                self.lam[0].len(),
+                input.shape()[1],
+                self.n
+            );
+        }
+
+        // Step 1: Forward Transform rhs along x
+        if let Some(p) = &self.fwd[0] {
+            let p_cast: Array2<S> = p.mapv(|x| x.into());
+            output.assign(&p_cast.dot(input));
+        } else {
+            output.assign(input);
+        }
+
+        // Step 2: Solve along y (but iterate over all lanes in x)
+        Zip::from(output.outer_iter_mut())
+            .and(self.lam[0].outer_iter())
+            .for_each(|mut out, lam| {
+                let l = lam.as_slice().unwrap()[0] + self.alpha;
+                let mut fdma = &self.fdma[0] + &(&self.fdma[1] * l);
+                fdma.sweep();
+                fdma.solve(&out.to_owned(), &mut out, 0);
+            });
+
+        // Step 3: Backward Transform solution along x
+        if let Some(q) = &self.bwd[0] {
+            let q_cast: Array2<S> = q.mapv(|x| x.into());
+            output.assign(&q_cast.dot(output));
+        }
+    }
+
+    fn solve_par<S1: Data<Elem = S>, S2: Data<Elem = S> + DataMut>(
         &self,
         input: &ArrayBase<S1, Ix2>,
         output: &mut ArrayBase<S2, Ix2>,

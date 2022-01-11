@@ -3,27 +3,27 @@
 //! Must be updated ...
 #![allow(clippy::module_name_repetitions)]
 pub mod fdma;
-pub mod fdma_par;
+//pub mod fdma_par;
 pub mod fdma_tensor;
 pub mod hholtz;
 pub mod hholtz_adi;
 pub mod matvec;
 pub mod poisson;
 pub mod sdma;
-pub mod sdma_par;
+//pub mod sdma_par;
 pub mod tdma;
 pub mod utils;
 pub use fdma::Fdma;
-pub use fdma_par::FdmaPar;
+//pub use fdma_par::FdmaPar;
 pub use fdma_tensor::FdmaTensor;
 pub use hholtz::Hholtz;
 pub use hholtz_adi::HholtzAdi;
-pub use matvec::{MatVec, MatVecDot, MatVecFdma, MatVecFdmaPar};
+pub use matvec::{MatVec, MatVecDot, MatVecFdma};
 use ndarray::{Array, ArrayBase, Data, DataMut};
 use num_complex::Complex;
 pub use poisson::Poisson;
 pub use sdma::Sdma;
-pub use sdma_par::SdmaPar;
+//pub use sdma_par::SdmaPar;
 pub use tdma::Tdma;
 use utils::diag;
 //use crate::derive_solve_enum;
@@ -67,6 +67,21 @@ pub trait Solve<A, D> {
         //A: SolverScalar,
         S1: Data<Elem = A>,
         S2: Data<Elem = A> + DataMut;
+
+    /// Solves M x = b, returns x, which is of type A
+    /// Output (x) matches input (b) in type and size.
+    ///
+    /// Use parallel iteratiors for ndim > 1. Might be
+    /// unimplemented for some solvers.
+    fn solve_par<S1, S2>(
+        &self,
+        input: &ArrayBase<S1, D>,
+        output: &mut ArrayBase<S2, D>,
+        axis: usize,
+    ) where
+        //A: SolverScalar,
+        S1: Data<Elem = A>,
+        S2: Data<Elem = A> + DataMut;
 }
 
 /// Solve linear algebraic systems of the form: M x = b.
@@ -77,6 +92,11 @@ pub trait SolveReturn<A, D> {
     fn solve<S1>(&self, input: &ArrayBase<S1, D>, axis: usize) -> Array<A, D>
     where
         S1: Data<Elem = A>;
+
+    /// Parallel version of solve. Might be unimplemented.
+    fn solve_par<S1>(&self, input: &ArrayBase<S1, D>, axis: usize) -> Array<A, D>
+    where
+        S1: Data<Elem = A>;
 }
 
 /// Collection of Linalg Solver, must work for unlimited number of dimensions
@@ -85,14 +105,14 @@ pub trait SolveReturn<A, D> {
 pub enum Solver<T> {
     /// Single-diagonal Solver
     Sdma(Sdma<T>),
-    /// Single-diagonal Solver (Parallel iterator for ndim > 1)
-    SdmaPar(SdmaPar<T>),
+    // /// Single-diagonal Solver (Parallel iterator for ndim > 1)
+    // SdmaPar(SdmaPar<T>),
     /// Two-diagonal Solver
     Tdma(Tdma<T>),
     /// Four-diagonal Solver
     Fdma(Fdma<T>),
-    /// Four-diagonal Solver (Parallel iterator for ndim > 1)
-    FdmaPar(FdmaPar<T>),
+    // /// Four-diagonal Solver (Parallel iterator for ndim > 1)
+    // FdmaPar(FdmaPar<T>),
 }
 
 /// Intented to solve field equations (limited number of dimensions)
@@ -123,10 +143,24 @@ where
     {
         match self {
             Self::Sdma(ref t) => t.solve(input, output, axis),
-            Self::SdmaPar(ref t) => t.solve(input, output, axis),
             Self::Tdma(ref t) => t.solve(input, output, axis),
             Self::Fdma(ref t) => t.solve(input, output, axis),
-            Self::FdmaPar(ref t) => t.solve(input, output, axis),
+        }
+    }
+
+    fn solve_par<S1, S2>(
+        &self,
+        input: &ArrayBase<S1, D>,
+        output: &mut ArrayBase<S2, D>,
+        axis: usize,
+    ) where
+        S1: Data<Elem = A>,
+        S2: Data<Elem = A> + DataMut,
+    {
+        match self {
+            Self::Sdma(ref t) => t.solve_par(input, output, axis),
+            Self::Tdma(ref t) => t.solve_par(input, output, axis),
+            Self::Fdma(ref t) => t.solve_par(input, output, axis),
         }
     }
 }
@@ -157,6 +191,22 @@ macro_rules! derive_solver_enum {
                     $i::<$t, $n>::Hholtz(ref t) => t.solve(input, output, axis),
                     $i::<$t, $n>::HholtzAdi(ref t) => t.solve(input, output, axis),
                     $i::<$t, $n>::Poisson(ref t) => t.solve(input, output, axis),
+                }
+            }
+
+            fn solve_par<S1, S2>(
+                &self,
+                input: &ArrayBase<S1, $d>,
+                output: &mut ArrayBase<S2, $d>,
+                axis: usize,
+            ) where
+                S1: Data<Elem = $a>,
+                S2: Data<Elem = $a> + DataMut,
+            {
+                match self {
+                    $i::<$t, $n>::Hholtz(ref t) => t.solve_par(input, output, axis),
+                    $i::<$t, $n>::HholtzAdi(ref t) => t.solve_par(input, output, axis),
+                    $i::<$t, $n>::Poisson(ref t) => t.solve_par(input, output, axis),
                 }
             }
         }
