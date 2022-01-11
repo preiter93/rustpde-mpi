@@ -11,14 +11,16 @@
 use crate::bases::BaseKind;
 use crate::bases::BaseSpace;
 use crate::field::read::broadcast_2d;
+use crate::field::FieldBase;
 use crate::field::{ReadField, WriteField};
 use crate::hdf5::Result;
 pub use crate::mpi::{BaseSpaceMpi, Decomp2d, Space2Mpi, Universe};
 use crate::types::FloatNum;
 use hdf5_interface::H5Type;
-use ndarray::{prelude::*, Data};
+use ndarray::{prelude::*, Data, DataMut};
 use ndarray::{Ix, ScalarOperand};
 use num_complex::Complex;
+use std::convert::From;
 use std::convert::TryInto;
 
 /// Two dimensional Field (Real in Physical space, Generic in Spectral Space)
@@ -122,6 +124,44 @@ where
             x,
             dx,
         }
+    }
+}
+
+/// Conversion `FieldBase` -> `FieldBaseMpi`
+impl<A, T1, T2, S, const N: usize> From<&FieldBase<A, T1, T2, S, N>>
+    for FieldBaseMpi<A, T1, T2, S, N>
+where
+    A: FloatNum,
+    Complex<A>: ScalarOperand,
+    S: BaseSpace<A, N, Physical = T1, Spectral = T2> + BaseSpaceMpi<A, N>,
+{
+    fn from(item: &FieldBase<A, T1, T2, S, N>) -> Self {
+        let mut field_mpi = Self::new(&item.space);
+        field_mpi
+            .space
+            .scatter_to_y_pencil_phys(&item.v, &mut field_mpi.v_y_pen);
+        field_mpi
+            .space
+            .scatter_to_x_pencil_spec(&item.vhat, &mut field_mpi.vhat_y_pen);
+        field_mpi
+    }
+}
+
+/// Conversion `FieldBaseMpi` -> `FieldBase`
+impl<A, T1, T2, S, const N: usize> From<&FieldBaseMpi<A, T1, T2, S, N>>
+    for FieldBase<A, T1, T2, S, N>
+where
+    A: FloatNum,
+    Complex<A>: ScalarOperand,
+    S: BaseSpace<A, N, Physical = T1, Spectral = T2> + BaseSpaceMpi<A, N>,
+{
+    fn from(item: &FieldBaseMpi<A, T1, T2, S, N>) -> Self {
+        let mut field = Self::new(&item.space);
+        item.space
+            .gather_from_y_pencil_phys(&item.v_y_pen, &mut field.v);
+        item.space
+            .gather_from_x_pencil_spec(&item.vhat_x_pen, &mut field.vhat);
+        field
     }
 }
 
@@ -385,6 +425,30 @@ where
             .scatter_to_x_pencil_spec(&self.vhat, &mut self.vhat_x_pen);
     }
 
+    /// Scatter data from root to all processors (y-pencil, physical domain)
+    pub fn all_scatter_phys<S1, S2>(
+        &mut self,
+        v: &ArrayBase<S1, Dim<[usize; N]>>,
+        v_y_pen: &mut ArrayBase<S2, Dim<[usize; N]>>,
+    ) where
+        S1: Data<Elem = T1>,
+        S2: DataMut<Elem = T1>,
+    {
+        self.space.scatter_to_y_pencil_phys(v, v_y_pen);
+    }
+
+    /// Scatter data from root to all processors (x-pencil, spectral domain)
+    pub fn all_scatter_spec<S1, S2>(
+        &mut self,
+        vhat: &ArrayBase<S1, Dim<[usize; N]>>,
+        vhat_x_pen: &mut ArrayBase<S2, Dim<[usize; N]>>,
+    ) where
+        S1: Data<Elem = T2>,
+        S2: DataMut<Elem = T2>,
+    {
+        self.space.scatter_to_x_pencil_spec(vhat, vhat_x_pen);
+    }
+
     // /// Split global data to y pencil for physical domain
     // pub fn split_physical(&mut self) {
     //     self.space
@@ -525,10 +589,12 @@ where
 impl<A, S> WriteField for FieldBaseMpi<A, A, A, S, 2>
 where
     A: FloatNum + H5Type,
-    S: BaseSpace<A, 2, Physical = A, Spectral = A>,
+    Complex<A>: ScalarOperand,
+    //S: BaseSpace<A, 2, Physical = A, Spectral = A>,
+    S: BaseSpace<A, 2, Physical = A, Spectral = A> + BaseSpaceMpi<A, 2>,
 {
     /// Write Field data to hdf5 file
-    fn write(&mut self, filename: &str, group: Option<&str>) {
+    fn write(&self, filename: &str, group: Option<&str>) {
         let result = self.write_return_result(filename, group);
         match result {
             Ok(_) => (),
@@ -536,8 +602,9 @@ where
         }
     }
 
-    fn write_return_result(&mut self, filename: &str, group: Option<&str>) -> Result<()> {
+    fn write_return_result(&self, filename: &str, group: Option<&str>) -> Result<()> {
         use hdf5_interface::write_to_hdf5;
+        // let field: FieldBase<A, A, A, S, 2> = self.into();
         write_to_hdf5(filename, "v", group, &self.v)?;
         write_to_hdf5(filename, "vhat", group, &self.vhat)?;
         write_to_hdf5(filename, "x", None, &self.x[0])?;
@@ -551,10 +618,11 @@ where
 impl<A, S> WriteField for FieldBaseMpi<A, A, Complex<A>, S, 2>
 where
     A: FloatNum + H5Type,
-    S: BaseSpace<A, 2, Physical = A, Spectral = Complex<A>>,
+    Complex<A>: ScalarOperand,
+    S: BaseSpace<A, 2, Physical = A, Spectral = Complex<A>> + BaseSpaceMpi<A, 2>,
 {
     /// Write Field data to hdf5 file
-    fn write(&mut self, filename: &str, group: Option<&str>) {
+    fn write(&self, filename: &str, group: Option<&str>) {
         let result = self.write_return_result(filename, group);
         match result {
             Ok(_) => (),
@@ -562,9 +630,10 @@ where
         }
     }
 
-    fn write_return_result(&mut self, filename: &str, group: Option<&str>) -> Result<()> {
+    fn write_return_result(&self, filename: &str, group: Option<&str>) -> Result<()> {
         use hdf5_interface::write_to_hdf5;
         use hdf5_interface::write_to_hdf5_complex;
+        // let field: FieldBase<A, A, Complex<A>, S, 2> = self.into();
         write_to_hdf5(filename, "v", group, &self.v)?;
         write_to_hdf5_complex(filename, "vhat", group, &self.vhat)?;
         write_to_hdf5(filename, "x", None, &self.x[0])?;
