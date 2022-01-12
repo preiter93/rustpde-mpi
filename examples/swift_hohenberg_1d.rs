@@ -91,7 +91,7 @@ impl SwiftHohenberg1D {
     }
 
     /// Apply random disturbance [-c, c]
-    fn init_random(field: &mut Field1<Complex<f64>, Space1R2c>, c: f64) {
+    fn _init_random(field: &mut Field1<Complex<f64>, Space1R2c>, c: f64) {
         use ndarray_rand::rand_distr::Uniform;
         use ndarray_rand::RandomExt;
         let nx = field.v.shape()[0];
@@ -130,7 +130,7 @@ impl SwiftHohenberg1D {
     }
 
     /// Update pde - diffusion explicit
-    fn update_explicit(&mut self) {
+    fn _update_explicit(&mut self) {
         self.zero_rhs();
         self.field.vhat.assign(&self.theta.vhat);
 

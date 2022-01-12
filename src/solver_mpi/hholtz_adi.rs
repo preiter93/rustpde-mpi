@@ -31,7 +31,9 @@ use crate::bases::BaseKind;
 use crate::bases::BaseSpace;
 use crate::field_mpi::FieldBaseMpi;
 use crate::mpi::{BaseSpaceMpi, Equivalence};
-use crate::solver::{Fdma, MatVec, MatVecFdma, Sdma, Solve, SolveReturn, Solver, SolverScalar};
+use crate::solver::{
+    Fdma, MatVec, MatVecFdma, PdmaPlus2, Sdma, Solve, SolveReturn, Solver, SolverScalar,
+};
 use ndarray::{Array2, ArrayBase, Data, DataMut, Ix2};
 use std::ops::{Add, Div, Mul};
 /// Container for `HholtzAdi`
@@ -67,6 +69,7 @@ where
                 BaseKind::Chebyshev | BaseKind::ChebDirichlet | BaseKind::ChebNeumann => {
                     Solver::Fdma(Fdma::from_matrix(&mat))
                 }
+                BaseKind::ChebDirichletNeumann => Solver::PdmaPlus2(PdmaPlus2::from_matrix(&mat)),
                 BaseKind::FourierR2c | BaseKind::FourierC2c => {
                     Solver::Sdma(Sdma::from_matrix(&mat))
                 }

@@ -3,30 +3,27 @@
 //! Must be updated ...
 #![allow(clippy::module_name_repetitions)]
 pub mod fdma;
-//pub mod fdma_par;
 pub mod fdma_tensor;
 pub mod hholtz;
 pub mod hholtz_adi;
 pub mod matvec;
+pub mod pdma_plus2;
 pub mod poisson;
 pub mod sdma;
-//pub mod sdma_par;
 pub mod tdma;
 pub mod utils;
 pub use fdma::Fdma;
-//pub use fdma_par::FdmaPar;
 pub use fdma_tensor::FdmaTensor;
 pub use hholtz::Hholtz;
 pub use hholtz_adi::HholtzAdi;
 pub use matvec::{MatVec, MatVecDot, MatVecFdma};
 use ndarray::{Array, ArrayBase, Data, DataMut};
 use num_complex::Complex;
+pub use pdma_plus2::PdmaPlus2;
 pub use poisson::Poisson;
 pub use sdma::Sdma;
-//pub use sdma_par::SdmaPar;
 pub use tdma::Tdma;
 use utils::diag;
-//use crate::derive_solve_enum;
 
 /// Combination of linear algebra traits
 pub trait SolverScalar:
@@ -105,14 +102,12 @@ pub trait SolveReturn<A, D> {
 pub enum Solver<T> {
     /// Single-diagonal Solver
     Sdma(Sdma<T>),
-    // /// Single-diagonal Solver (Parallel iterator for ndim > 1)
-    // SdmaPar(SdmaPar<T>),
     /// Two-diagonal Solver
     Tdma(Tdma<T>),
     /// Four-diagonal Solver
     Fdma(Fdma<T>),
-    // /// Four-diagonal Solver (Parallel iterator for ndim > 1)
-    // FdmaPar(FdmaPar<T>),
+    /// Penta-diagonal solver (diagonals -2, -1, 0, 1, 2, 3, 4)
+    PdmaPlus2(PdmaPlus2<T>),
 }
 
 /// Intented to solve field equations (limited number of dimensions)
@@ -145,6 +140,7 @@ where
             Self::Sdma(ref t) => t.solve(input, output, axis),
             Self::Tdma(ref t) => t.solve(input, output, axis),
             Self::Fdma(ref t) => t.solve(input, output, axis),
+            Self::PdmaPlus2(ref t) => t.solve(input, output, axis),
         }
     }
 
@@ -161,6 +157,7 @@ where
             Self::Sdma(ref t) => t.solve_par(input, output, axis),
             Self::Tdma(ref t) => t.solve_par(input, output, axis),
             Self::Fdma(ref t) => t.solve_par(input, output, axis),
+            Self::PdmaPlus2(ref t) => t.solve_par(input, output, axis),
         }
     }
 }

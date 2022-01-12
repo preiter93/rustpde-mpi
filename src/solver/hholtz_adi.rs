@@ -23,7 +23,7 @@ use super::{MatVec, MatVecFdma, Solver, SolverScalar};
 use crate::bases::BaseKind;
 use crate::bases::BaseSpace;
 use crate::field::FieldBase;
-use crate::solver::{Fdma, Sdma, Solve, SolveReturn};
+use crate::solver::{Fdma, PdmaPlus2, Sdma, Solve, SolveReturn};
 use ndarray::prelude::*;
 use ndarray::{Data, DataMut};
 use std::ops::{Add, Div, Mul};
@@ -61,6 +61,7 @@ impl<const N: usize> HholtzAdi<f64, N> {
                 BaseKind::Chebyshev | BaseKind::ChebDirichlet | BaseKind::ChebNeumann => {
                     Solver::Fdma(Fdma::from_matrix(&mat))
                 }
+                BaseKind::ChebDirichletNeumann => Solver::PdmaPlus2(PdmaPlus2::from_matrix(&mat)),
                 BaseKind::FourierR2c | BaseKind::FourierC2c => {
                     Solver::Sdma(Sdma::from_matrix(&mat))
                 }

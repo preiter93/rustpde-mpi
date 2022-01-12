@@ -1,13 +1,13 @@
 //! # Solver for Boussinesq equations (mpi supported)
 //! Default: Rayleigh Benard Convection
-use super::boundary_conditions::{bc_rbc, bc_rbc_periodic};
+use super::boundary_conditions::{bc_hc_periodic, bc_rbc, bc_rbc_periodic};
 use super::boundary_conditions::{pres_bc_rbc, pres_bc_rbc_periodic};
 use super::functions::conv_term;
 use super::functions::{apply_cos_sin, apply_random_disturbance, apply_sin_cos, dealias};
 use super::functions::{get_ka, get_nu};
 use super::statistics::Statistics;
 use crate::bases::fourier_r2c;
-use crate::bases::{cheb_dirichlet, cheb_neumann, chebyshev};
+use crate::bases::{cheb_dirichlet, cheb_dirichlet_neumann, cheb_neumann, chebyshev};
 use crate::bases::{BaseR2c, BaseR2r};
 use crate::field::{BaseSpace, ReadField, WriteField};
 use crate::field_mpi::Field2Mpi;
@@ -411,6 +411,111 @@ impl<'a> Navier2DMpi<'_, Complex<f64>, Space2R2c<'a>>
         // Boundary condition
         navier.set_temp_bc(bc_rbc_periodic(nx, ny, universe));
         navier.set_pres_bc(pres_bc_rbc_periodic(nx, ny, universe));
+        // Initial condition
+        // navier.set_velocity(0.2, 2., 1.);
+        navier.random_disturbance(0.1);
+        // Return
+        navier
+    }
+
+    /// Periodic horizontal convection
+    #[allow(clippy::similar_names, clippy::too_many_arguments)]
+    pub fn new_periodic_hc(
+        universe: &'a Universe,
+        nx: usize,
+        ny: usize,
+        ra: f64,
+        pr: f64,
+        dt: f64,
+        aspect: f64,
+    ) -> Navier2DMpi<Complex<f64>, Space2R2c> {
+        // geometry scales
+        let scale = [aspect, 1.];
+        // diffusivities
+        let nu = get_nu(ra, pr, scale[1] * 2.0);
+        let ka = get_ka(ra, pr, scale[1] * 2.0);
+        // velocities
+        let ux = Field2Mpi::new(&Space2Mpi::new(
+            &fourier_r2c(nx),
+            &cheb_dirichlet(ny),
+            universe,
+        ));
+        let uy = Field2Mpi::new(&Space2Mpi::new(
+            &fourier_r2c(nx),
+            &cheb_dirichlet(ny),
+            universe,
+        ));
+        // temperature
+        let temp = Field2Mpi::new(&Space2Mpi::new(
+            &fourier_r2c(nx),
+            &cheb_dirichlet_neumann(ny),
+            universe,
+        ));
+        // pressure
+        let pres = [
+            Field2Mpi::new(&Space2Mpi::new(&fourier_r2c(nx), &chebyshev(ny), universe)),
+            Field2Mpi::new(&Space2Mpi::new(
+                &fourier_r2c(nx),
+                &cheb_neumann(ny),
+                universe,
+            )),
+        ];
+        // fields for derivatives
+        let field = Field2Mpi::new(&Space2Mpi::new(&fourier_r2c(nx), &chebyshev(ny), universe));
+        // define solver
+        let solver_ux = HholtzAdiMpi::new(
+            &ux,
+            [dt * nu / scale[0].powf(2.), dt * nu / scale[1].powf(2.)],
+        );
+        let solver_uy = HholtzAdiMpi::new(
+            &uy,
+            [dt * nu / scale[0].powf(2.), dt * nu / scale[1].powf(2.)],
+        );
+        let solver_temp = HholtzAdiMpi::new(
+            &temp,
+            [dt * ka / scale[0].powf(2.), dt * ka / scale[1].powf(2.)],
+        );
+        let solver_hholtz = [solver_ux, solver_uy, solver_temp];
+        let solver_pres =
+            PoissonMpi::new(&pres[1], [1. / scale[0].powf(2.), 1. / scale[1].powf(2.)]);
+        let rhs = Array2::zeros(field.vhat_x_pen.raw_dim());
+
+        // Diagnostics
+        let mut diagnostics = HashMap::new();
+        diagnostics.insert("time".to_string(), Vec::<f64>::new());
+        diagnostics.insert("Nu".to_string(), Vec::<f64>::new());
+        diagnostics.insert("Nuvol".to_string(), Vec::<f64>::new());
+        diagnostics.insert("Re".to_string(), Vec::<f64>::new());
+
+        // Initialize
+        let mut navier = Navier2DMpi::<Complex<f64>, Space2R2c> {
+            universe,
+            field,
+            temp,
+            ux,
+            uy,
+            pres,
+            solver_hholtz,
+            solver_pres,
+            rhs,
+            tempbc: None,
+            presbc: None,
+            nu,
+            ka,
+            ra,
+            pr,
+            time: 0.0,
+            dt,
+            scale,
+            diagnostics,
+            write_intervall: None,
+            solid: None,
+            dealias: true,
+            statistics: None,
+        };
+        navier._scale();
+        // Boundary condition
+        navier.set_temp_bc(bc_hc_periodic(nx, ny, universe));
         // Initial condition
         // navier.set_velocity(0.2, 2., 1.);
         navier.random_disturbance(0.1);
