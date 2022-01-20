@@ -58,8 +58,10 @@ pub struct Navier2DAdjointMpi<'a, T, S> {
     pub ux: [Field2Mpi<T, S>; 2],
     /// Vertical Velocity \[Adjoint Field, NS Residual\]
     pub uy: [Field2Mpi<T, S>; 2],
-    /// Pressure [pres, pseudo pressure]
-    pub pres: [Field2Mpi<T, S>; 2],
+    /// Pressure
+    pub pres: Field2Mpi<T, S>,
+    /// Pseudo Pressure
+    pub pseu: Field2Mpi<T, S>,
     /// Poisson solver for pressure
     solver_pres: PoissonMpi<f64, S, 2>,
     /// Smooth fields for better convergence \[ux, uy, temp\]
@@ -258,20 +260,18 @@ impl<'a> Navier2DAdjointMpi<'_, f64, Space2R2r<'a>> {
         // define underlying naver-stokes solver
         let navier = Navier2DMpi::new(universe, nx, ny, ra, pr, DT_NAVIER, aspect, adiabatic);
         // pressure
-        let pres = [
-            Field2Mpi::new(&Space2Mpi::new(&chebyshev(nx), &chebyshev(ny), universe)),
-            Field2Mpi::new(&Space2Mpi::new(
-                &cheb_neumann(nx),
-                &cheb_neumann(ny),
-                universe,
-            )),
-        ];
+        let pres = Field2Mpi::new(&Space2Mpi::new(&chebyshev(nx), &chebyshev(ny), universe));
+        let pseu = Field2Mpi::new(&Space2Mpi::new(
+            &cheb_neumann(nx),
+            &cheb_neumann(ny),
+            universe,
+        ));
         // fields for derivatives
         let field = Field2Mpi::new(&Space2Mpi::new(&chebyshev(nx), &chebyshev(ny), universe));
 
         // pressure solver
         let solver_pres =
-            PoissonMpi::new(&pres[1], [1.0 / scale[0].powf(2.), 1.0 / scale[1].powf(2.)]);
+            PoissonMpi::new(&pseu, [1.0 / scale[0].powf(2.), 1.0 / scale[1].powf(2.)]);
 
         // define smoother (hholtz type) (1-weight*D2)
         let smooth_ux = HholtzMpi::new(
@@ -330,11 +330,7 @@ impl<'a> Navier2DAdjointMpi<'_, f64, Space2R2r<'a>> {
         let rhs = Array2::zeros(field.vhat_x_pen.raw_dim());
 
         // Diagnostics
-        let mut diagnostics = HashMap::new();
-        diagnostics.insert("time".to_string(), Vec::<f64>::new());
-        diagnostics.insert("Nu".to_string(), Vec::<f64>::new());
-        diagnostics.insert("Nuvol".to_string(), Vec::<f64>::new());
-        diagnostics.insert("Re".to_string(), Vec::<f64>::new());
+        let diagnostics = HashMap::new();
 
         // Initialize
         let mut navier_adjoint = Navier2DAdjointMpi::<f64, Space2R2r> {
@@ -345,6 +341,7 @@ impl<'a> Navier2DAdjointMpi<'_, f64, Space2R2r<'a>> {
             ux,
             uy,
             pres,
+            pseu,
             smoother,
             solver_pres,
             rhs,
@@ -445,20 +442,18 @@ impl<'a> Navier2DAdjointMpi<'_, Complex<f64>, Space2R2c<'a>> {
         // define underlying naver-stokes solver
         let navier = Navier2DMpi::new_periodic(universe, nx, ny, ra, pr, DT_NAVIER, aspect);
         // pressure
-        let pres = [
-            Field2Mpi::new(&Space2Mpi::new(&fourier_r2c(nx), &chebyshev(ny), universe)),
-            Field2Mpi::new(&Space2Mpi::new(
-                &fourier_r2c(nx),
-                &cheb_neumann(ny),
-                universe,
-            )),
-        ];
+        let pres = Field2Mpi::new(&Space2Mpi::new(&fourier_r2c(nx), &chebyshev(ny), universe));
+        let pseu = Field2Mpi::new(&Space2Mpi::new(
+            &fourier_r2c(nx),
+            &cheb_neumann(ny),
+            universe,
+        ));
         // fields for derivatives
         let field = Field2Mpi::new(&Space2Mpi::new(&fourier_r2c(nx), &chebyshev(ny), universe));
 
         // pressure solver
         let solver_pres =
-            PoissonMpi::new(&pres[1], [1.0 / scale[0].powf(2.), 1.0 / scale[1].powf(2.)]);
+            PoissonMpi::new(&pseu, [1.0 / scale[0].powf(2.), 1.0 / scale[1].powf(2.)]);
 
         // define smoother (hholtz type) (1-weight*D2)
         let smooth_ux = HholtzMpi::new(
@@ -516,11 +511,8 @@ impl<'a> Navier2DAdjointMpi<'_, Complex<f64>, Space2R2c<'a>> {
         let rhs = Array2::zeros(field.vhat_x_pen.raw_dim());
 
         // Diagnostics
-        let mut diagnostics = HashMap::new();
-        diagnostics.insert("time".to_string(), Vec::<f64>::new());
-        diagnostics.insert("Nu".to_string(), Vec::<f64>::new());
-        diagnostics.insert("Nuvol".to_string(), Vec::<f64>::new());
-        diagnostics.insert("Re".to_string(), Vec::<f64>::new());
+        let diagnostics = HashMap::new();
+
         // Initialize
         let mut navier_adjoint = Navier2DAdjointMpi::<Complex<f64>, Space2R2c> {
             universe,
@@ -530,6 +522,7 @@ impl<'a> Navier2DAdjointMpi<'_, Complex<f64>, Space2R2c<'a>> {
             ux,
             uy,
             pres,
+            pseu,
             smoother,
             solver_pres,
             rhs,
@@ -568,7 +561,7 @@ where
             &mut self.temp[0],
             &mut self.ux[0],
             &mut self.uy[0],
-            &mut self.pres[0],
+            &mut self.pres,
         ] {
             field.x[0] *= self.scale[0];
             field.x[1] *= self.scale[1];
@@ -726,7 +719,7 @@ macro_rules! impl_navier_convection {
                 // + old field
                 self.rhs += &self.ux[0].to_ortho_mpi();
                 // + pres
-                self.rhs -= &(self.pres[0].gradient_mpi([1, 0], Some(self.scale)) * self.dt);
+                self.rhs -= &(self.pres.gradient_mpi([1, 0], Some(self.scale)) * self.dt);
                 // + convection
                 let conv = self.conv_ux(ux, uy, temp);
                 self.rhs += &(conv * self.dt);
@@ -750,7 +743,7 @@ macro_rules! impl_navier_convection {
                 // + old field
                 self.rhs += &self.uy[0].to_ortho_mpi();
                 // + pres
-                self.rhs -= &(self.pres[0].gradient_mpi([0, 1], Some(self.scale)) * self.dt);
+                self.rhs -= &(self.pres.gradient_mpi([0, 1], Some(self.scale)) * self.dt);
                 // + convection
                 let conv = self.conv_uy(ux, uy, temp);
                 self.rhs += &(conv * self.dt);
@@ -792,8 +785,8 @@ macro_rules! impl_navier_convection {
             /// uynew = uy - c*dpdy
             #[allow(clippy::similar_names)]
             fn project_velocity(&mut self, c: f64) {
-                let dpdx = self.pres[1].gradient_mpi([1, 0], Some(self.scale));
-                let dpdy = self.pres[1].gradient_mpi([0, 1], Some(self.scale));
+                let dpdx = self.pseu.gradient_mpi([1, 0], Some(self.scale));
+                let dpdy = self.pseu.gradient_mpi([0, 1], Some(self.scale));
                 let old_ux = self.ux[0].vhat_x_pen.clone();
                 let old_uy = self.uy[0].vhat_x_pen.clone();
                 self.ux[0].from_ortho_mpi(&dpdx);
@@ -826,17 +819,17 @@ macro_rules! impl_navier_convection {
             ///
             /// pseu: pseudo pressure ( in code it is pres\[1\] )
             fn solve_pres(&mut self, f: &Array2<Self::Spectral>) {
-                self.solver_pres.solve(&f, &mut self.pres[1].vhat_x_pen, 0);
+                self.solver_pres.solve(&f, &mut self.pseu.vhat_x_pen, 0);
                 // Singularity
                 if self.nrank() == 0 {
-                    self.pres[1].vhat_x_pen[[0, 0]] = Self::Spectral::zero();
+                    self.pseu.vhat_x_pen[[0, 0]] = Self::Spectral::zero();
                 }
             }
 
             fn update_pres(&mut self, _div: &Array2<Self::Spectral>) {
-                // self.pres[0].vhat = &self.pres[0].vhat - &(div * self.nu);
+                // self.pres.vhat = &self.pres.vhat - &(div * self.nu);
                 let inv_dt: Self::Spectral = (1. / self.dt).into();
-                self.pres[0].vhat_x_pen += &(&self.pres[1].to_ortho_mpi() * inv_dt);
+                self.pres.vhat_x_pen += &(&self.pseu.to_ortho_mpi() * inv_dt);
             }
 
             /// Update navier stokes residual
@@ -952,19 +945,6 @@ macro_rules! impl_integrate {
                         re,
                     );
 
-                    // diagnostics
-                    if let Some(d) = self.diagnostics.get_mut("time") {
-                        d.push(self.time);
-                    }
-                    if let Some(d) = self.diagnostics.get_mut("Nu") {
-                        d.push(nu);
-                    }
-                    if let Some(d) = self.diagnostics.get_mut("Nuvol") {
-                        d.push(nuvol);
-                    }
-                    if let Some(d) = self.diagnostics.get_mut("Re") {
-                        d.push(re);
-                    }
                     let mut file = std::fs::OpenOptions::new()
                         .write(true)
                         .append(true)
@@ -1116,7 +1096,7 @@ where
             &mut self.temp[0],
             &mut self.ux[0],
             &mut self.uy[0],
-            &mut self.pres[0],
+            &mut self.pres,
         ] {
             field.backward_mpi();
             field.gather_physical();
@@ -1131,15 +1111,15 @@ where
         // self.temp.backward_mpi();
         // self.ux.backward_mpi();
         // self.uy.backward_mpi();
-        // self.pres[0].backward_mpi();
+        // self.pres.backward_mpi();
         // self.temp.gather_physical();
         // self.ux.gather_physical();
         // self.uy.gather_physical();
-        // self.pres[0].gather_physical();
+        // self.pres.gather_physical();
         // self.temp.gather_spectral();
         // self.ux.gather_spectral();
         // self.uy.gather_spectral();
-        // self.pres[0].gather_spectral();
+        // self.pres.gather_spectral();
     }
 
     // /// Gather all arrays from mpi distribution to all participating processors
@@ -1150,11 +1130,11 @@ where
     //     self.temp.all_gather_physical();
     //     self.ux.all_gather_physical();
     //     self.uy.all_gather_physical();
-    //     self.pres[0].all_gather_physical();
+    //     self.pres.all_gather_physical();
     //     self.temp.all_gather_spectral();
     //     self.ux.all_gather_spectral();
     //     self.uy.all_gather_spectral();
-    //     self.pres[0].all_gather_spectral();
+    //     self.pres.all_gather_spectral();
     // }
 
     /// Scatter all arrays from root to all processes
@@ -1162,16 +1142,16 @@ where
         // self.temp.scatter_physical();
         // self.ux.scatter_physical();
         // self.uy.scatter_physical();
-        // self.pres[0].scatter_physical();
+        // self.pres.scatter_physical();
         // self.temp.scatter_spectral();
         // self.ux.scatter_spectral();
         // self.uy.scatter_spectral();
-        // self.pres[0].scatter_spectral();
+        // self.pres.scatter_spectral();
         for field in &mut [
             &mut self.temp[0],
             &mut self.ux[0],
             &mut self.uy[0],
-            &mut self.pres[0],
+            &mut self.pres,
         ] {
             field.scatter_physical();
             field.scatter_spectral();
@@ -1218,7 +1198,7 @@ macro_rules! impl_read_write_navier {
                 self.temp[0].backward();
                 self.ux[0].backward();
                 self.uy[0].backward();
-                self.pres[0].backward();
+                self.pres.backward();
                 // Add boundary contribution
                 if let Some(x) = &self.tempbc {
                     self.temp[0].v = &self.temp[0].v + &x.v;
@@ -1227,7 +1207,7 @@ macro_rules! impl_read_write_navier {
                 self.temp[0].write(&filename, Some("temp"));
                 self.ux[0].write(&filename, Some("ux"));
                 self.uy[0].write(&filename, Some("uy"));
-                self.pres[0].write(&filename, Some("pres"));
+                self.pres.write(&filename, Some("pres"));
                 // Write scalars
                 write_scalar_to_hdf5(&filename, "time", None, self.time).ok();
                 write_scalar_to_hdf5(&filename, "ra", None, self.ra).ok();

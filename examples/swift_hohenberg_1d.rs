@@ -14,7 +14,7 @@ use num_traits::identities::Zero;
 use rustpde::bases::fourier_r2c;
 use rustpde::bases::BaseR2c;
 use rustpde::field::{Field1, Space1};
-use rustpde::hdf5::{write_scalar_to_hdf5, Result};
+use rustpde::io::{write_scalar_to_hdf5, Result};
 use rustpde::Integrate;
 
 type Space1R2c = Space1<BaseR2c<f64>>;

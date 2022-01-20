@@ -429,17 +429,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "hdf5-interface"
-version = "0.1.0"
-source = "git+https://github.com/preiter93/hdf5-interface#7374fe661fbdb1c92e0287cefe55cc5c40967653"
-dependencies = [
- "hdf5",
- "ndarray",
- "num-complex 0.4.0",
- "num-traits",
-]
-
-[[package]]
 name = "hdf5-sys"
 version = "0.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1114,12 +1103,12 @@ dependencies = [
 
 [[package]]
 name = "rustpde"
-version = "0.2.5"
+version = "0.2.6"
 dependencies = [
  "criterion",
  "enum_dispatch",
  "funspace",
- "hdf5-interface",
+ "hdf5",
  "ndarray",
  "ndarray-linalg",
  "ndarray-rand",

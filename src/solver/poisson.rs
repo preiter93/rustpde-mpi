@@ -80,7 +80,7 @@ impl<const N: usize> Poisson<f64, N> {
         // Handle singularity (2D)
         if N == 2 && solver.lam[0][0].abs() < 1e-10 {
             solver.lam[0] -= 1e-10;
-            println!("Poisson seems singular! Eigenvalue 0 is manipulated to help out.");
+            // println!("Poisson seems singular! Eigenvalue 0 is manipulated to help out.");
         }
 
         // let solver = Box::new(solver);

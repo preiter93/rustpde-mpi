@@ -22,11 +22,12 @@
 //! ```
 use crate::bases::BaseSpace;
 use crate::bases::{cheb_dirichlet, chebyshev, fourier_r2c, Space2};
-use crate::field::{Field2, ReadField};
-use crate::hdf5::write_to_hdf5;
-use crate::hdf5::write_to_hdf5_complex;
-use crate::hdf5::Result;
-use hdf5_interface::hdf5_get_size_dimension;
+use crate::field::Field2;
+use crate::io::read_write_hdf5::hdf5_get_size_dimension;
+use crate::io::read_write_hdf5::write_to_hdf5;
+use crate::io::read_write_hdf5::write_to_hdf5_complex;
+use crate::io::traits::ReadWrite;
+use crate::io::Result;
 use num_traits::Zero;
 
 /// Read velocities from file,
@@ -40,15 +41,15 @@ pub fn vorticity_from_file(fname: &str) -> Result<()> {
     let mut ux = Field2::new(&Space2::new(&cheb_dirichlet(nx), &cheb_dirichlet(ny)));
     let mut uy = Field2::new(&Space2::new(&cheb_dirichlet(nx), &cheb_dirichlet(ny)));
     let mut vorticity = Field2::new(&Space2::new(&chebyshev(nx), &chebyshev(ny)));
-    ux.read(&fname, Some("ux"));
-    uy.read(&fname, Some("uy"));
+    ux.read(&fname, "ux")?;
+    uy.read(&fname, "uy")?;
     let dudz = ux.gradient([0, 1], Some([1.0, 1.0]));
     let dvdx = uy.gradient([1, 0], Some([1.0, 1.0]));
     vorticity.vhat.assign(&(dvdx - dudz));
     dealias(&mut vorticity);
     vorticity.backward();
-    write_to_hdf5(fname, "v", Some("vorticity"), &vorticity.v)?;
-    write_to_hdf5(fname, "vhat", Some("vorticity"), &vorticity.vhat)?;
+    write_to_hdf5(fname, "vorticity/v", &vorticity.v)?;
+    write_to_hdf5(fname, "vorticity/vhat", &vorticity.vhat)?;
     Ok(())
 }
 
@@ -65,15 +66,15 @@ pub fn vorticity_from_file_periodic(fname: &str) -> Result<()> {
     let mut ux = Field2::new(&Space2::new(&fourier_r2c(nx), &cheb_dirichlet(ny)));
     let mut uy = Field2::new(&Space2::new(&fourier_r2c(nx), &cheb_dirichlet(ny)));
     let mut vorticity = Field2::new(&Space2::new(&fourier_r2c(nx), &chebyshev(ny)));
-    ux.read(&fname, Some("ux"));
-    uy.read(&fname, Some("uy"));
+    ux.read(&fname, "ux")?;
+    uy.read(&fname, "uy")?;
     let dudz = ux.gradient([0, 1], Some([1.0, 1.0]));
     let dvdx = uy.gradient([1, 0], Some([1.0, 1.0]));
     vorticity.vhat.assign(&(dvdx - dudz));
     dealias(&mut vorticity);
     vorticity.backward();
-    write_to_hdf5(fname, "v", Some("vorticity"), &vorticity.v)?;
-    write_to_hdf5_complex(fname, "vhat", Some("vorticity"), &vorticity.vhat)?;
+    write_to_hdf5(fname, "vorticity/v", &vorticity.v)?;
+    write_to_hdf5_complex(fname, "vorticity/vhat", &vorticity.vhat)?;
     Ok(())
 }
 

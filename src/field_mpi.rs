@@ -10,13 +10,14 @@
 //pub mod write;
 use crate::bases::BaseKind;
 use crate::bases::BaseSpace;
-use crate::field::read::broadcast_2d;
+use crate::field::io::{impl_read_write_field2, interpolate_2d};
 use crate::field::FieldBase;
-use crate::field::{ReadField, WriteField};
-use crate::hdf5::Result;
+use crate::io::read_write_hdf5::{read_from_hdf5, write_to_hdf5};
+use crate::io::read_write_hdf5::{read_from_hdf5_complex, write_to_hdf5_complex};
+use crate::io::traits::ReadWrite;
+use crate::io::Result;
 pub use crate::mpi::{BaseSpaceMpi, Decomp2d, Space2Mpi, Universe};
 use crate::types::FloatNum;
-use hdf5_interface::H5Type;
 use ndarray::{prelude::*, Data, DataMut};
 use ndarray::{Ix, ScalarOperand};
 use num_complex::Complex;
@@ -123,6 +124,14 @@ where
             vhat_y_pen,
             x,
             dx,
+        }
+    }
+
+    /// Scale coordinates
+    pub fn scale(&mut self, scale: [A; N]) {
+        for (i, sc) in scale.iter().enumerate() {
+            self.x[i] *= *sc;
+            self.dx[i] *= *sc;
         }
     }
 }
@@ -512,134 +521,12 @@ where
     }
 }
 
-impl<A, S> ReadField for FieldBaseMpi<A, A, A, S, 2>
-where
-    A: FloatNum + H5Type,
-    Complex<A>: ScalarOperand,
-    S: BaseSpace<A, 2, Physical = A, Spectral = A>,
-{
-    fn read(&mut self, filename: &str, group: Option<&str>) {
-        use crate::hdf5::read_from_hdf5;
-        let result = read_from_hdf5::<A, Ix2>(filename, "vhat", group);
-        match result {
-            Ok(x) => {
-                if x.shape() == self.vhat.shape() {
-                    self.vhat.assign(&x);
-                } else {
-                    println!(
-                        "Attention! Broadcast from shape {:?} to shape {:?}.",
-                        x.shape(),
-                        self.vhat.shape()
-                    );
-                    broadcast_2d(&x, &mut self.vhat);
-                }
-                self.backward();
-                println!("Reading file {:?} was successfull.", filename);
-            }
-            Err(_) => println!("Error while reading file {:?}.", filename),
-        }
-    }
-}
-
-impl<A, S> ReadField for FieldBaseMpi<A, A, Complex<A>, S, 2>
-where
-    A: FloatNum + H5Type,
-    Complex<A>: ScalarOperand,
-    S: BaseSpace<A, 2, Physical = A, Spectral = Complex<A>>,
-{
-    #[allow(clippy::cast_precision_loss, clippy::single_match)]
-    fn read(&mut self, filename: &str, group: Option<&str>) {
-        use crate::hdf5::read_from_hdf5_complex;
-        let result = read_from_hdf5_complex::<A, Ix2>(filename, "vhat", group);
-        match result {
-            Ok(x) => {
-                if x.shape() == self.vhat.shape() {
-                    self.vhat.assign(&x);
-                } else {
-                    println!(
-                        "Attention! Broadcast from shape {:?} to shape {:?}.",
-                        x.shape(),
-                        self.vhat.shape()
-                    );
-                    broadcast_2d(&x, &mut self.vhat);
-                    // Renormalize Fourier base
-                    let kind = &self.space.base_kind(0);
-                    match kind {
-                        BaseKind::FourierR2c => {
-                            let norm = A::from(
-                                (self.vhat.shape()[0] - 1) as f64 / (x.shape()[0] - 1) as f64,
-                            )
-                            .unwrap();
-                            for v in self.vhat.iter_mut() {
-                                v.re *= norm;
-                                v.im *= norm;
-                            }
-                        }
-                        _ => (),
-                    };
-                }
-                self.backward();
-                println!("Reading file {:?} was successfull.", filename);
-            }
-            Err(_) => println!("Error while reading file {:?}.", filename),
-        }
-    }
-}
-
-impl<A, S> WriteField for FieldBaseMpi<A, A, A, S, 2>
-where
-    A: FloatNum + H5Type,
-    Complex<A>: ScalarOperand,
-    //S: BaseSpace<A, 2, Physical = A, Spectral = A>,
-    S: BaseSpace<A, 2, Physical = A, Spectral = A> + BaseSpaceMpi<A, 2>,
-{
-    /// Write Field data to hdf5 file
-    fn write(&self, filename: &str, group: Option<&str>) {
-        let result = self.write_return_result(filename, group);
-        match result {
-            Ok(_) => (),
-            Err(_) => println!("Error while writing file {:?}.", filename),
-        }
-    }
-
-    fn write_return_result(&self, filename: &str, group: Option<&str>) -> Result<()> {
-        use hdf5_interface::write_to_hdf5;
-        // let field: FieldBase<A, A, A, S, 2> = self.into();
-        write_to_hdf5(filename, "v", group, &self.v)?;
-        write_to_hdf5(filename, "vhat", group, &self.vhat)?;
-        write_to_hdf5(filename, "x", None, &self.x[0])?;
-        write_to_hdf5(filename, "dx", None, &self.dx[0])?;
-        write_to_hdf5(filename, "y", None, &self.x[1])?;
-        write_to_hdf5(filename, "dy", None, &self.dx[1])?;
-        Ok(())
-    }
-}
-
-impl<A, S> WriteField for FieldBaseMpi<A, A, Complex<A>, S, 2>
-where
-    A: FloatNum + H5Type,
-    Complex<A>: ScalarOperand,
-    S: BaseSpace<A, 2, Physical = A, Spectral = Complex<A>> + BaseSpaceMpi<A, 2>,
-{
-    /// Write Field data to hdf5 file
-    fn write(&self, filename: &str, group: Option<&str>) {
-        let result = self.write_return_result(filename, group);
-        match result {
-            Ok(_) => (),
-            Err(_) => println!("Error while writing file {:?}.", filename),
-        }
-    }
-
-    fn write_return_result(&self, filename: &str, group: Option<&str>) -> Result<()> {
-        use hdf5_interface::write_to_hdf5;
-        use hdf5_interface::write_to_hdf5_complex;
-        // let field: FieldBase<A, A, Complex<A>, S, 2> = self.into();
-        write_to_hdf5(filename, "v", group, &self.v)?;
-        write_to_hdf5_complex(filename, "vhat", group, &self.vhat)?;
-        write_to_hdf5(filename, "x", None, &self.x[0])?;
-        write_to_hdf5(filename, "dx", None, &self.dx[0])?;
-        write_to_hdf5(filename, "y", None, &self.x[1])?;
-        write_to_hdf5(filename, "dy", None, &self.dx[1])?;
-        Ok(())
-    }
-}
+impl_read_write_field2!(Field2Mpi<f64, S>, f64, f64, read_from_hdf5, write_to_hdf5, write_to_hdf5);
+impl_read_write_field2!(
+    Field2Mpi<Complex<f64>, S>,
+    f64,
+    Complex<f64>,
+    read_from_hdf5_complex,
+    write_to_hdf5,
+    write_to_hdf5_complex
+);

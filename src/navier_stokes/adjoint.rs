@@ -34,12 +34,12 @@
 //! M. Farazmand (2016).
 //! An adjoint-based approach for finding invariant solutions of Navier--Stokes equations
 //! J. Fluid Mech., 795, 278-312.
-use super::boundary_conditions::{bc_rbc, bc_rbc_periodic};
+use super::boundary_conditions::{bc_hc_periodic, bc_rbc, bc_rbc_periodic};
 use super::conv_term::conv_term;
 use super::functions::{apply_cos_sin, apply_sin_cos, dealias, get_ka, get_nu};
 use super::navier::Navier2D;
 use crate::bases::fourier_r2c;
-use crate::bases::{cheb_dirichlet, cheb_neumann, chebyshev};
+use crate::bases::{cheb_dirichlet, cheb_dirichlet_neumann, cheb_neumann, chebyshev};
 use crate::bases::{BaseR2c, BaseR2r};
 use crate::field::{BaseSpace, Field2, ReadField, Space2, WriteField};
 use crate::hdf5::{read_scalar_from_hdf5, write_scalar_to_hdf5, Result};
@@ -144,8 +144,10 @@ pub struct Navier2DAdjoint<T, S> {
     pub ux: [Field2<T, S>; 2],
     /// Vertical Velocity \[Adjoint Field, NS Residual\]
     pub uy: [Field2<T, S>; 2],
-    /// Pressure [pres, pseudo pressure]
-    pub pres: [Field2<T, S>; 2],
+    /// Pressure
+    pub pres: Field2<T, S>,
+    /// Pseudo Pressure
+    pub pseu: Field2<T, S>,
     /// Collection of solvers \[pres\]
     solver: [SolverField<f64, 2>; 1],
     /// Smooth fields for better convergence \[ux, uy, temp\]
@@ -211,44 +213,49 @@ impl Navier2DAdjoint<f64, Space2R2r> {
         pr: f64,
         dt: f64,
         aspect: f64,
-        adiabatic: bool,
+        bc: &str,
     ) -> Navier2DAdjoint<f64, Space2R2r> {
         let scale = [aspect, 1.];
         let nu = get_nu(ra, pr, scale[1] * 2.0);
         let ka = get_ka(ra, pr, scale[1] * 2.0);
-        let ux = [
+        let mut ux = [
             Field2::new(&Space2::new(&cheb_dirichlet(nx), &cheb_dirichlet(ny))),
             Field2::new(&Space2::new(&cheb_dirichlet(nx), &cheb_dirichlet(ny))),
         ];
-        let uy = [
+        let mut uy = [
             Field2::new(&Space2::new(&cheb_dirichlet(nx), &cheb_dirichlet(ny))),
             Field2::new(&Space2::new(&cheb_dirichlet(nx), &cheb_dirichlet(ny))),
         ];
-        let temp = if adiabatic {
-            [
-                Field2::new(&Space2::new(&cheb_neumann(nx), &cheb_dirichlet(ny))),
-                Field2::new(&Space2::new(&cheb_neumann(nx), &cheb_dirichlet(ny))),
-            ]
-        } else {
-            [
-                Field2::new(&Space2::new(&cheb_dirichlet(nx), &cheb_dirichlet(ny))),
-                Field2::new(&Space2::new(&cheb_dirichlet(nx), &cheb_dirichlet(ny))),
-            ]
+        let (mut temp, tempbc, presbc) = match bc {
+            "rbc" => {
+                let temp = [
+                    Field2::new(&Space2::new(&cheb_neumann(nx), &cheb_dirichlet(ny))),
+                    Field2::new(&Space2::new(&cheb_neumann(nx), &cheb_dirichlet(ny))),
+                ];
+                let tempbc = bc_rbc(nx, ny);
+                (temp, Some(tempbc), None)
+            }
+            _ => panic!("Boundary condition type {:?} not recognized!", bc),
         };
         // define underlying naver-stokes solver
-        let navier = Navier2D::new(nx, ny, ra, pr, DT_NAVIER, aspect, adiabatic);
+        let navier = Navier2D::new(nx, ny, ra, pr, DT_NAVIER, aspect, bc);
         // pressure
-        let pres = [
-            Field2::new(&Space2::new(&chebyshev(nx), &chebyshev(ny))),
-            Field2::new(&Space2::new(&cheb_neumann(nx), &cheb_neumann(ny))),
-        ];
-        // fields for derivatives
+        let pres = Field2::new(&Space2::new(&chebyshev(nx), &chebyshev(ny)));
+        let pseu = Field2::new(&Space2::new(&cheb_neumann(nx), &cheb_neumann(ny)));
         let field = Field2::new(&Space2::new(&chebyshev(nx), &chebyshev(ny)));
+
+        // scale coordinates
+        ux[0].scale(scale);
+        ux[1].scale(scale);
+        uy[0].scale(scale);
+        uy[1].scale(scale);
+        temp[0].scale(scale);
+        temp[1].scale(scale);
 
         // pressure solver
         let solver_pres = SolverField::Poisson(Poisson::new(
-            &pres[1],
-            [1.0 / scale[0].powf(2.), 1.0 / scale[1].powf(2.)],
+            &pseu,
+            [1.0 / scale[0].powi(2), 1.0 / scale[1].powi(2)],
         ));
         let solver = [solver_pres];
 
@@ -256,22 +263,22 @@ impl Navier2DAdjoint<f64, Space2R2r> {
         let smooth_ux = SolverField::Hholtz(Hholtz::new(
             &ux[1],
             [
-                WEIGHT_LAPLACIAN / scale[0].powf(2.),
-                WEIGHT_LAPLACIAN / scale[1].powf(2.),
+                WEIGHT_LAPLACIAN / scale[0].powi(2),
+                WEIGHT_LAPLACIAN / scale[1].powi(2),
             ],
         ));
         let smooth_uy = SolverField::Hholtz(Hholtz::new(
             &uy[1],
             [
-                WEIGHT_LAPLACIAN / scale[0].powf(2.),
-                WEIGHT_LAPLACIAN / scale[1].powf(2.),
+                WEIGHT_LAPLACIAN / scale[0].powi(2),
+                WEIGHT_LAPLACIAN / scale[1].powi(2),
             ],
         ));
         let smooth_temp = SolverField::Hholtz(Hholtz::new(
             &temp[1],
             [
-                WEIGHT_LAPLACIAN / scale[0].powf(2.),
-                WEIGHT_LAPLACIAN / scale[1].powf(2.),
+                WEIGHT_LAPLACIAN / scale[0].powi(2),
+                WEIGHT_LAPLACIAN / scale[1].powi(2),
             ],
         ));
 
@@ -279,22 +286,22 @@ impl Navier2DAdjoint<f64, Space2R2r> {
         // let smooth_ux = SolverField::Poisson(Poisson::new(
         //     &ux[0],
         //     [
-        //         -1.0 / (1. * scale[0].powf(2.)),
-        //         -1.0 / (1. * scale[1].powf(2.)),
+        //         -1.0 / (1. * scale[0].powi(2)),
+        //         -1.0 / (1. * scale[1].powi(2)),
         //     ],
         // ));
         // let smooth_uy = SolverField::Poisson(Poisson::new(
         //     &uy[0],
         //     [
-        //         -1.0 / (1. * scale[0].powf(2.)),
-        //         -1.0 / (1. * scale[1].powf(2.)),
+        //         -1.0 / (1. * scale[0].powi(2)),
+        //         -1.0 / (1. * scale[1].powi(2)),
         //     ],
         // ));
         // let smooth_temp = SolverField::Poisson(Poisson::new(
         //     &temp[0],
         //     [
-        //         -1.0 / (1. * scale[0].powf(2.)),
-        //         -1.0 / (1. * scale[1].powf(2.)),
+        //         -1.0 / (1. * scale[0].powi(2)),
+        //         -1.0 / (1. * scale[1].powi(2)),
         //     ],
         // ));
 
@@ -309,26 +316,23 @@ impl Navier2DAdjoint<f64, Space2R2r> {
         let rhs = Array2::zeros(field.vhat.raw_dim());
 
         // Diagnostics
-        let mut diagnostics = HashMap::new();
-        diagnostics.insert("time".to_string(), Vec::<f64>::new());
-        diagnostics.insert("Nu".to_string(), Vec::<f64>::new());
-        diagnostics.insert("Nuvol".to_string(), Vec::<f64>::new());
-        diagnostics.insert("Re".to_string(), Vec::<f64>::new());
+        let diagnostics = HashMap::new();
 
-        // Initialize
-        let mut navier_adjoint = Navier2DAdjoint::<f64, Space2R2r> {
+        // Return
+        Navier2DAdjoint::<f64, Space2R2r> {
             navier,
             field,
             temp,
             ux,
             uy,
             pres,
+            pseu,
             smoother,
             solver,
             rhs,
             fields_unsmoothed,
-            tempbc: None,
-            presbc: None,
+            tempbc,
+            presbc,
             nu,
             ka,
             ra,
@@ -341,12 +345,7 @@ impl Navier2DAdjoint<f64, Space2R2r> {
             write_intervall: None,
             res_tol: RES_TOL,
             dealias: true,
-        };
-        navier_adjoint._scale();
-        // Boundary condition
-        navier_adjoint.set_temp_bc(bc_rbc(nx, ny));
-        // Return
-        navier_adjoint
+        }
     }
 }
 
@@ -374,36 +373,59 @@ impl Navier2DAdjoint<Complex<f64>, Space2R2c> {
         pr: f64,
         dt: f64,
         aspect: f64,
+        bc: &str,
     ) -> Navier2DAdjoint<Complex<f64>, Space2R2c> {
         let scale = [aspect, 1.];
         let nu = get_nu(ra, pr, scale[1] * 2.0);
         let ka = get_ka(ra, pr, scale[1] * 2.0);
-        let ux = [
+        let mut ux = [
             Field2::new(&Space2::new(&fourier_r2c(nx), &cheb_dirichlet(ny))),
             Field2::new(&Space2::new(&fourier_r2c(nx), &cheb_dirichlet(ny))),
         ];
-        let uy = [
+        let mut uy = [
             Field2::new(&Space2::new(&fourier_r2c(nx), &cheb_dirichlet(ny))),
             Field2::new(&Space2::new(&fourier_r2c(nx), &cheb_dirichlet(ny))),
         ];
-        let temp = [
-            Field2::new(&Space2::new(&fourier_r2c(nx), &cheb_dirichlet(ny))),
-            Field2::new(&Space2::new(&fourier_r2c(nx), &cheb_dirichlet(ny))),
-        ];
+        let (mut temp, tempbc, presbc) = match bc {
+            "rbc" => {
+                let temp = [
+                    Field2::new(&Space2::new(&fourier_r2c(nx), &cheb_dirichlet(ny))),
+                    Field2::new(&Space2::new(&fourier_r2c(nx), &cheb_dirichlet(ny))),
+                ];
+                let tempbc = bc_rbc_periodic(nx, ny);
+                (temp, Some(tempbc), None)
+            }
+            "hc" => {
+                let temp = [
+                    Field2::new(&Space2::new(&fourier_r2c(nx), &cheb_dirichlet_neumann(ny))),
+                    Field2::new(&Space2::new(&fourier_r2c(nx), &cheb_dirichlet_neumann(ny))),
+                ];
+                let tempbc = bc_hc_periodic(nx, ny);
+                (temp, Some(tempbc), None)
+            }
+            _ => panic!("Boundary condition type {:?} not recognized!", bc),
+        };
+
         // define underlying naver-stokes solver
-        let navier = Navier2D::new_periodic(nx, ny, ra, pr, DT_NAVIER, aspect);
+        let navier = Navier2D::new_periodic(nx, ny, ra, pr, DT_NAVIER, aspect, bc);
         // pressure
-        let pres = [
-            Field2::new(&Space2::new(&fourier_r2c(nx), &chebyshev(ny))),
-            Field2::new(&Space2::new(&fourier_r2c(nx), &cheb_neumann(ny))),
-        ];
+        let pres = Field2::new(&Space2::new(&fourier_r2c(nx), &chebyshev(ny)));
+        let pseu = Field2::new(&Space2::new(&fourier_r2c(nx), &cheb_neumann(ny)));
         // fields for derivatives
         let field = Field2::new(&Space2::new(&fourier_r2c(nx), &chebyshev(ny)));
 
+        // scale coordinates
+        ux[0].scale(scale);
+        ux[1].scale(scale);
+        uy[0].scale(scale);
+        uy[1].scale(scale);
+        temp[0].scale(scale);
+        temp[1].scale(scale);
+
         // pressure solver
         let solver_pres = SolverField::Poisson(Poisson::new(
-            &pres[1],
-            [1.0 / scale[0].powf(2.), 1.0 / scale[1].powf(2.)],
+            &pseu,
+            [1.0 / scale[0].powi(2), 1.0 / scale[1].powi(2)],
         ));
         let solver = [solver_pres];
 
@@ -411,22 +433,22 @@ impl Navier2DAdjoint<Complex<f64>, Space2R2c> {
         let smooth_ux = SolverField::Hholtz(Hholtz::new(
             &ux[0],
             [
-                WEIGHT_LAPLACIAN / scale[0].powf(2.),
-                WEIGHT_LAPLACIAN / scale[1].powf(2.),
+                WEIGHT_LAPLACIAN / scale[0].powi(2),
+                WEIGHT_LAPLACIAN / scale[1].powi(2),
             ],
         ));
         let smooth_uy = SolverField::Hholtz(Hholtz::new(
             &uy[0],
             [
-                WEIGHT_LAPLACIAN / scale[0].powf(2.),
-                WEIGHT_LAPLACIAN / scale[1].powf(2.),
+                WEIGHT_LAPLACIAN / scale[0].powi(2),
+                WEIGHT_LAPLACIAN / scale[1].powi(2),
             ],
         ));
         let smooth_temp = SolverField::Hholtz(Hholtz::new(
             &temp[0],
             [
-                WEIGHT_LAPLACIAN / scale[0].powf(2.),
-                WEIGHT_LAPLACIAN / scale[1].powf(2.),
+                WEIGHT_LAPLACIAN / scale[0].powi(2),
+                WEIGHT_LAPLACIAN / scale[1].powi(2),
             ],
         ));
 
@@ -434,22 +456,22 @@ impl Navier2DAdjoint<Complex<f64>, Space2R2c> {
         // let smooth_ux = SolverField::Poisson(Poisson::new(
         //     &ux[0],
         //     [
-        //         -1.0 / (1. * scale[0].powf(2.)),
-        //         -1.0 / (1. * scale[1].powf(2.)),
+        //         -1.0 / (1. * scale[0].powi(2)),
+        //         -1.0 / (1. * scale[1].powi(2)),
         //     ],
         // ));
         // let smooth_uy = SolverField::Poisson(Poisson::new(
         //     &uy[0],
         //     [
-        //         -1.0 / (1. * scale[0].powf(2.)),
-        //         -1.0 / (1. * scale[1].powf(2.)),
+        //         -1.0 / (1. * scale[0].powi(2)),
+        //         -1.0 / (1. * scale[1].powi(2)),
         //     ],
         // ));
         // let smooth_temp = SolverField::Poisson(Poisson::new(
         //     &temp[0],
         //     [
-        //         -1.0 / (1. * scale[0].powf(2.)),
-        //         -1.0 / (1. * scale[1].powf(2.)),
+        //         -1.0 / (1. * scale[0].powi(2)),
+        //         -1.0 / (1. * scale[1].powi(2)),
         //     ],
         // ));
 
@@ -464,26 +486,23 @@ impl Navier2DAdjoint<Complex<f64>, Space2R2c> {
         let rhs = Array2::zeros(field.vhat.raw_dim());
 
         // Diagnostics
-        let mut diagnostics = HashMap::new();
-        diagnostics.insert("time".to_string(), Vec::<f64>::new());
-        diagnostics.insert("Nu".to_string(), Vec::<f64>::new());
-        diagnostics.insert("Nuvol".to_string(), Vec::<f64>::new());
-        diagnostics.insert("Re".to_string(), Vec::<f64>::new());
+        let diagnostics = HashMap::new();
 
-        // Initialize
-        let mut navier_adjoint = Navier2DAdjoint::<Complex<f64>, Space2R2c> {
+        // Return
+        Navier2DAdjoint::<Complex<f64>, Space2R2c> {
             navier,
             field,
             temp,
             ux,
             uy,
             pres,
+            pseu,
             smoother,
             solver,
             rhs,
             fields_unsmoothed,
-            tempbc: None,
-            presbc: None,
+            tempbc,
+            presbc,
             nu,
             ka,
             ra,
@@ -496,12 +515,7 @@ impl Navier2DAdjoint<Complex<f64>, Space2R2c> {
             write_intervall: None,
             res_tol: RES_TOL,
             dealias: true,
-        };
-        navier_adjoint._scale();
-        // Boundary condition
-        navier_adjoint.set_temp_bc(bc_rbc_periodic(nx, ny));
-        // Return
-        navier_adjoint
+        }
     }
 }
 
@@ -517,7 +531,7 @@ where
             &mut self.temp[0],
             &mut self.ux[0],
             &mut self.uy[0],
-            &mut self.pres[0],
+            &mut self.pres,
         ] {
             field.x[0] *= self.scale[0];
             field.x[1] *= self.scale[1];
@@ -664,7 +678,7 @@ macro_rules! impl_navier_convection {
                 // + old field
                 self.rhs += &self.ux[0].to_ortho();
                 // + pres
-                self.rhs -= &(self.pres[0].gradient([1, 0], Some(self.scale)) * self.dt);
+                self.rhs -= &(self.pres.gradient([1, 0], Some(self.scale)) * self.dt);
                 // if let Some(field) = &self.presbc {
                 //     self.rhs -= &(field.gradient([1, 0], Some(self.scale)) * self.dt);
                 // }
@@ -689,7 +703,7 @@ macro_rules! impl_navier_convection {
                 // + old field
                 self.rhs += &self.uy[0].to_ortho();
                 // + pres
-                self.rhs -= &(self.pres[0].gradient([0, 1], Some(self.scale)) * self.dt);
+                self.rhs -= &(self.pres.gradient([0, 1], Some(self.scale)) * self.dt);
                 // if let Some(field) = &self.presbc {
                 //     self.rhs -= &(field.gradient([0, 1], Some(self.scale)) * self.dt);
                 // }
@@ -730,8 +744,8 @@ macro_rules! impl_navier_convection {
             /// uynew = uy - c*dpdy
             #[allow(clippy::similar_names)]
             fn project_velocity(&mut self, c: f64) {
-                let dpdx = self.pres[1].gradient([1, 0], Some(self.scale));
-                let dpdy = self.pres[1].gradient([0, 1], Some(self.scale));
+                let dpdx = self.pseu.gradient([1, 0], Some(self.scale));
+                let dpdy = self.pseu.gradient([0, 1], Some(self.scale));
                 let old_ux = self.ux[0].vhat.clone();
                 let old_uy = self.uy[0].vhat.clone();
                 self.ux[0].from_ortho(&dpdx);
@@ -757,15 +771,15 @@ macro_rules! impl_navier_convection {
             ///
             /// pseu: pseudo pressure ( in code it is pres\[1\] )
             fn solve_pres(&mut self, f: &Array2<Self::Spectral>) {
-                self.solver[0].solve(&f, &mut self.pres[1].vhat, 0);
+                self.solver[0].solve(&f, &mut self.pseu.vhat, 0);
                 // Singularity
-                self.pres[1].vhat[[0, 0]] = Self::Spectral::zero();
+                self.pseu.vhat[[0, 0]] = Self::Spectral::zero();
             }
 
             fn update_pres(&mut self, _div: &Array2<Self::Spectral>) {
-                // self.pres[0].vhat = &self.pres[0].vhat - &(div * self.nu);
+                // self.pres.vhat = &self.pres.vhat - &(div * self.nu);
                 let inv_dt: Self::Spectral = (1. / self.dt).into();
-                self.pres[0].vhat += &(&self.pres[1].to_ortho() * inv_dt);
+                self.pres.vhat += &(&self.pseu.to_ortho() * inv_dt);
             }
 
             /// Update navier stokes residual
@@ -920,19 +934,6 @@ macro_rules! impl_integrate {
                     re,
                 );
 
-                // diagnostics
-                if let Some(d) = self.diagnostics.get_mut("time") {
-                    d.push(self.time);
-                }
-                if let Some(d) = self.diagnostics.get_mut("Nu") {
-                    d.push(nu);
-                }
-                if let Some(d) = self.diagnostics.get_mut("Nuvol") {
-                    d.push(nuvol);
-                }
-                if let Some(d) = self.diagnostics.get_mut("Re") {
-                    d.push(re);
-                }
                 let mut file = std::fs::OpenOptions::new()
                     .write(true)
                     .append(true)
@@ -1114,7 +1115,7 @@ macro_rules! impl_read_write_navier {
                 self.temp[0].backward();
                 self.ux[0].backward();
                 self.uy[0].backward();
-                self.pres[0].backward();
+                self.pres.backward();
                 // Add boundary contribution
                 if let Some(x) = &self.tempbc {
                     self.temp[0].v = &self.temp[0].v + &x.v;
@@ -1123,7 +1124,7 @@ macro_rules! impl_read_write_navier {
                 self.temp[0].write(&filename, Some("temp"));
                 self.ux[0].write(&filename, Some("ux"));
                 self.uy[0].write(&filename, Some("uy"));
-                self.pres[0].write(&filename, Some("pres"));
+                self.pres.write(&filename, Some("pres"));
                 // Write scalars
                 write_scalar_to_hdf5(&filename, "time", None, self.time).ok();
                 write_scalar_to_hdf5(&filename, "ra", None, self.ra).ok();

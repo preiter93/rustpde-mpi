@@ -125,7 +125,7 @@ extern crate enum_dispatch;
 pub mod bases;
 pub mod field;
 pub mod field_mpi;
-pub mod hdf5;
+pub mod io;
 pub mod mpi;
 pub mod navier_stokes;
 pub mod navier_stokes_mpi;

@@ -26,9 +26,13 @@ i = int(input())
 # -- Read hd5 file
 filename = fname[i]
 with h5py.File(filename, "r") as f:
-    x = np.array(f["x"])
-    y = np.array(f["y"])
+    x = np.array(f["temp/x"])
+    y = np.array(f["temp/y"])
     t = np.array(f["temp/v"])
+    try:
+        tbc = np.array(f["tempbc/v"])
+    except:
+        tbc = np.zeros(temp.shape())
     try:
         u = np.array(f["ux/v"])
         v = np.array(f["uy/v"])
@@ -40,7 +44,7 @@ with h5py.File(filename, "r") as f:
         vorticity = np.array(f["vorticity/v"])
     except:
         vorticity = None
-        
+
     try:
         s = np.array(f["solid/mask"])
     except:
@@ -48,9 +52,9 @@ with h5py.File(filename, "r") as f:
 
 print("Plot {:}".format(filename))
 if u is not None:
-    fig, ax = plot_streamplot(x, y, t, u, v, return_fig=True)
+    fig, ax = plot_streamplot(x, y, t + tbc, u, v, return_fig=True)
 else:
-    fig, ax = plot_contour(x, y, t, return_fig=True)
+    fig, ax = plot_contour(x, y, t + tbc, return_fig=True)
 
 fig.savefig("fig.png", bbox_inches="tight", dpi=200)
 plt.show()

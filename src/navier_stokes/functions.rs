@@ -19,6 +19,54 @@ pub fn get_ka(ra: f64, pr: f64, height: f64) -> f64 {
     f.sqrt()
 }
 
+/// Return l2 norm of real array
+pub fn norm_l2_f64(array: &Array2<f64>) -> f64 {
+    array.iter().map(|x| x.powi(2)).sum::<f64>().sqrt()
+}
+
+/// Return l2 norm of complex array
+pub fn norm_l2_c64(array: &Array2<Complex<f64>>) -> f64 {
+    array
+        .iter()
+        .map(|x| x.re.powi(2) + x.im.powi(2))
+        .sum::<f64>()
+        .sqrt()
+}
+
+/// Calculate u*dvdx
+///
+/// # Input
+///   *u*: ndarray (2D)
+///        Convection Velocity field in physical space
+///
+///   *field*: Field<Space2D, 2>
+///       Contains field variable vhat in spectral space
+///
+///   *space*: Field<Space2D, 2>
+///       Space for transformation
+///
+///   *deriv*: [usize; 2]
+///        \[1,0\] for partial x, \[0,1\] for partial y
+///
+/// # Return
+/// Array of u*dvdx term in physical space.
+///
+/// Collect all convective terms, thatn transform to spectral space.
+pub fn conv_term<T2, S>(
+    u: &Array2<f64>,
+    field: &FieldBase<f64, f64, T2, S, 2>,
+    space: &mut S,
+    deriv: [usize; 2],
+    scale: Option<[f64; 2]>,
+) -> Array2<f64>
+where
+    S: BaseSpace<f64, 2, Physical = f64, Spectral = T2>,
+    T2: Scalar,
+{
+    // u *dvdx
+    u * space.backward_par(&field.gradient(deriv, scale))
+}
+
 /// Dealias field (2/3 rule)
 pub fn dealias<S, T2>(field: &mut Field2<T2, S>)
 where

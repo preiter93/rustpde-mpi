@@ -15,10 +15,9 @@ fn main() {
     let (nx, ny) = (129, 129);
     let ra = 1e4;
     let pr = 1.;
-    let adiabatic = true;
     let aspect = 1.0;
     let dt = 0.01;
-    let mut navier = Navier2DMpi::new(&universe, nx, ny, ra, pr, dt, aspect, adiabatic);
+    let mut navier = Navier2DMpi::new_confined(&universe, nx, ny, ra, pr, dt, aspect, "rbc");
     // navier.read("restart.h5");
     // navier.reset_time();
     // Set initial conditions

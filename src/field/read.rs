@@ -1,9 +1,9 @@
 //! Implement reading from hdf5 file for struct Field
 use super::{BaseSpace, FieldBase};
 use crate::bases::BaseKind;
-use crate::hdf5::read_from_hdf5;
-use crate::hdf5::read_from_hdf5_complex;
-use crate::hdf5::H5Type;
+use crate::io::read_from_hdf5;
+use crate::io::read_from_hdf5_complex;
+use crate::io::H5Type;
 use crate::types::FloatNum;
 use ndarray::prelude::*;
 use ndarray::ScalarOperand;

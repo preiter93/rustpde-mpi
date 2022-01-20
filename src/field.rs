@@ -4,17 +4,14 @@
 //! belong the the physical (v) and spectral (vhat)
 //! space.
 pub mod average;
-pub mod read;
-pub mod write;
+pub mod io;
 use crate::bases::BaseKind;
 pub use crate::bases::{BaseSpace, Space1, Space2};
 use crate::types::FloatNum;
 use ndarray::{prelude::*, Data};
 use ndarray::{Ix, ScalarOperand};
 use num_complex::Complex;
-pub use read::ReadField;
 use std::convert::TryInto;
-pub use write::WriteField;
 
 /// One dimensional Field (Real in Physical space, Generic in Spectral Space)
 pub type Field1<T2, S> = FieldBase<f64, f64, T2, S, 1>;
@@ -89,6 +86,14 @@ where
             vhat: space.ndarray_spectral(),
             x: space.coords(),
             dx: Self::get_dx(&space.coords(), Self::is_periodic(space)),
+        }
+    }
+
+    /// Scale coordinates
+    pub fn scale(&mut self, scale: [A; N]) {
+        for (i, sc) in scale.iter().enumerate() {
+            self.x[i] *= *sc;
+            self.dx[i] *= *sc;
         }
     }
 

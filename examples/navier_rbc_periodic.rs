@@ -13,7 +13,7 @@ fn main() {
     let pr = 1.;
     let aspect = 1.0; // corresponds to a  lateral length of 2pi
     let dt = 0.01;
-    let mut navier = Navier2D::new_periodic(nx, ny, ra, pr, dt, aspect);
+    let mut navier = Navier2D::new_periodic(nx, ny, ra, pr, dt, aspect, "rbc");
     //navier.read("restart.h5");
     //navier.reset_time();
     // Set initial conditions

@@ -99,6 +99,51 @@ pub fn bc_zero(nx: usize, ny: usize, k: f64) -> Field2<f64, Space2R2r> {
     fieldbc
 }
 
+/// Return field for Horizontal convection
+/// type temperature boundary conditions:
+///
+/// T = sin(2*pi/L * x) at the bottom
+/// and T = T' = 0 at the top
+pub fn bc_hc(nx: usize, ny: usize) -> Field2<f64, Space2R2r> {
+    use ndarray::Axis;
+    use std::f64::consts::PI;
+
+    /// Return y = a(x-xs)**2 + ys, where xs and
+    /// ys (=0) are the coordinates of the parabola.
+    ///
+    /// The vertex with ys=0 and dydx=0 is at the
+    /// right boundary and *a* is calculated
+    /// from the value at the left boundary,
+    fn _parabola(x: &Array1<f64>, f_xl: f64) -> Array1<f64> {
+        let x_l = x[0];
+        let x_r = x[x.len() - 1];
+        let a = f_xl / (x_l - x_r).powi(2);
+        x.mapv(|x| a * (x - x_r).powi(2))
+    }
+
+    // Create base and field
+    let x_base = chebyshev(nx);
+    let y_base = chebyshev(ny);
+    let space = Space2::new(&x_base, &y_base);
+    let mut fieldbc = Field2::new(&space);
+
+    let x = &fieldbc.x[0];
+    let y = &fieldbc.x[1];
+    let x0 = x[0];
+    let length = x[x.len() - 1] - x[0];
+    for (mut axis, xi) in fieldbc.v.axis_iter_mut(Axis(0)).zip(x.iter()) {
+        let f_x = -0.5 * (2. * PI * (xi - x0) / length).cos();
+        let parabola = _parabola(y, f_x);
+        axis.assign(&parabola);
+    }
+
+    // Transform
+    fieldbc.forward();
+    fieldbc.backward();
+
+    fieldbc
+}
+
 /// Return field for rayleigh benard
 /// type temperature boundary conditions:
 ///
@@ -121,6 +166,51 @@ pub fn bc_rbc_periodic(nx: usize, ny: usize) -> Field2<Complex<f64>, Space2R2c> 
     x_base.forward_inplace(&bc, &mut fieldbc.vhat, 0);
     fieldbc.backward();
     fieldbc.forward();
+    fieldbc
+}
+
+/// Return field for Horizontal convection
+/// type temperature boundary conditions:
+///
+/// T = sin(2*pi/L * x) at the bottom
+/// and T = T' = 0 at the top
+pub fn bc_hc_periodic(nx: usize, ny: usize) -> Field2<Complex<f64>, Space2R2c> {
+    use ndarray::Axis;
+    use std::f64::consts::PI;
+
+    /// Return y = a(x-xs)**2 + ys, where xs and
+    /// ys (=0) are the coordinates of the parabola.
+    ///
+    /// The vertex with ys=0 and dydx=0 is at the
+    /// right boundary and *a* is calculated
+    /// from the value at the left boundary,
+    fn _parabola(x: &Array1<f64>, f_xl: f64) -> Array1<f64> {
+        let x_l = x[0];
+        let x_r = x[x.len() - 1];
+        let a = f_xl / (x_l - x_r).powi(2);
+        x.mapv(|x| a * (x - x_r).powi(2))
+    }
+
+    // Create base and field
+    let x_base = fourier_r2c(nx);
+    let y_base = chebyshev(ny);
+    let space = Space2::new(&x_base, &y_base);
+    let mut fieldbc = Field2::new(&space);
+
+    let x = &fieldbc.x[0];
+    let y = &fieldbc.x[1];
+    let x0 = x[0];
+    let length = x[x.len() - 1] - x[0];
+    for (mut axis, xi) in fieldbc.v.axis_iter_mut(Axis(0)).zip(x.iter()) {
+        let f_x = -0.5 * (2. * PI * (xi - x0) / length).cos();
+        let parabola = _parabola(y, f_x);
+        axis.assign(&parabola);
+    }
+
+    // Transform
+    fieldbc.forward();
+    fieldbc.backward();
+
     fieldbc
 }
 

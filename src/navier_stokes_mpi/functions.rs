@@ -22,15 +22,31 @@ pub fn get_ka(ra: f64, pr: f64, height: f64) -> f64 {
     f.sqrt()
 }
 
+/// Return l2 norm of real array
+pub fn norm_l2_f64(array: &Array2<f64>) -> f64 {
+    array.iter().map(|x| x.powi(2)).sum::<f64>().sqrt()
+}
+
+/// Return l2 norm of complex array
+pub fn norm_l2_c64(array: &Array2<Complex<f64>>) -> f64 {
+    array
+        .iter()
+        .map(|x| x.re.powi(2) + x.im.powi(2))
+        .sum::<f64>()
+        .sqrt()
+}
+
 /// Calculate u*dvdx
 ///
 /// # Input
+///   *u*: ndarray (2D)
+///        Convection Velocity field in physical space
 ///
-///    *field*: Field<Space2D, 2>
-///        Contains field variable vhat in spectral space
+///   *field*: Field<Space2D, 2>
+///       Contains field variable vhat in spectral space
 ///
-///   *u*:  ndarray (2D)
-///        Velocity field in physical space
+///   *space*: Field<Space2D, 2>
+///       Space for transformation
 ///
 ///   *deriv*: [usize; 2]
 ///        \[1,0\] for partial x, \[0,1\] for partial y
@@ -40,9 +56,9 @@ pub fn get_ka(ra: f64, pr: f64, height: f64) -> f64 {
 ///
 /// Collect all convective terms, thatn transform to spectral space.
 pub fn conv_term<T2, S>(
-    field: &FieldBaseMpi<f64, f64, T2, S, 2>,
-    deriv_field: &mut FieldBaseMpi<f64, f64, T2, S, 2>,
     u: &Array2<f64>,
+    field: &FieldBaseMpi<f64, f64, T2, S, 2>,
+    space: &mut S,
     deriv: [usize; 2],
     scale: Option<[f64; 2]>,
 ) -> Array2<f64>
@@ -51,16 +67,32 @@ where
         + BaseSpaceMpi<f64, 2, Physical = f64, Spectral = T2>,
     T2: Scalar,
 {
-    //dvdx
-    for v in deriv_field.vhat_x_pen.iter_mut() {
-        *v = T2::zero();
+    // u *dvdx
+    u * space.backward_mpi(&field.gradient_mpi(deriv, scale))
+}
+
+/// Dealias field (2/3 rule)
+pub fn dealias<S, T2>(field: &mut Field2Mpi<T2, S>)
+where
+    S: BaseSpace<f64, 2, Physical = f64, Spectral = T2>
+        + BaseSpaceMpi<f64, 2, Physical = f64, Spectral = T2>,
+    T2: Zero + Clone + Copy,
+{
+    let zero = T2::zero();
+    let n_x: usize = field.vhat.shape()[0] * 2 / 3;
+    let n_y: usize = field.vhat.shape()[1] * 2 / 3;
+    // x dim
+    field.vhat_x_pen.slice_mut(s![n_x.., ..]).fill(zero);
+    // y dim is broken
+    let dcp = field.space.get_decomp_from_global_shape(field.vhat.shape());
+    if n_y < dcp.x_pencil.en[1] {
+        let yst = if n_y > dcp.x_pencil.st[1] {
+            n_y - dcp.x_pencil.st[1]
+        } else {
+            0
+        };
+        field.vhat_x_pen.slice_mut(s![.., yst..]).fill(zero);
     }
-    deriv_field
-        .vhat_x_pen
-        .assign(&field.gradient_mpi(deriv, scale));
-    deriv_field.backward_mpi();
-    //u*dvdx
-    u * &deriv_field.v_y_pen
 }
 
 /// Returns Nusselt number (heat flux at the plates)
@@ -156,30 +188,6 @@ where
     let two = A::one() + A::one();
     field.v *= two * scale[1] / nu;
     field.average()
-}
-
-/// Dealias field (2/3 rule)
-pub fn dealias<S, T2>(field: &mut Field2Mpi<T2, S>)
-where
-    S: BaseSpace<f64, 2, Physical = f64, Spectral = T2>
-        + BaseSpaceMpi<f64, 2, Physical = f64, Spectral = T2>,
-    T2: Zero + Clone + Copy,
-{
-    let zero = T2::zero();
-    let n_x: usize = field.vhat.shape()[0] * 2 / 3;
-    let n_y: usize = field.vhat.shape()[1] * 2 / 3;
-    // x dim
-    field.vhat_x_pen.slice_mut(s![n_x.., ..]).fill(zero);
-    // y dim is broken
-    let dcp = field.space.get_decomp_from_global_shape(field.vhat.shape());
-    if n_y < dcp.x_pencil.en[1] {
-        let yst = if n_y > dcp.x_pencil.st[1] {
-            n_y - dcp.x_pencil.st[1]
-        } else {
-            0
-        };
-        field.vhat_x_pen.slice_mut(s![.., yst..]).fill(zero);
-    }
 }
 
 /// Construct field f(x,y) = amp \* sin(pi\*m)cos(pi\*n)
