@@ -23,11 +23,36 @@ fn main() {
     // if navier.nrank() == 0 {
     //     navier.write("restart.h5");
     // }
-    navier.read_unwrap("restart.h5");
 
-    // Set initial conditions
-    // navier.random_disturbance(1e-2);
+    navier.read_unwrap("restart.h5");
+    navier.reset_time();
+    // navier.temp.scatter_spectral();
+    // navier.temp.scatter_physical();
+    // navier.temp.backward_mpi();
+    // //
+    // // Set initial conditions
+    // // navier.random_disturbance(1e-2);
     integrate(&mut navier, 10., Some(1.0));
+    // let temp = &navier.temp;
+    // let axis = 0;
+    //
+    // let avga = temp.average_axis(axis);
+    //
+    // let avgb = temp.average_axis_mpi(axis);
+    //
+    // let avga = navier.eval_re();
+    //
+    // let avgb = navier.eval_re_mpi();
+    //
+    // if navier.nrank() == 0 {
+    //     println!("{:?}", avga);
+    //     println!("");
+    // }
+    //
+    // if navier.nrank() == 1 {
+    //     println!("{:?}", avgb);
+    //     println!("");
+    // }
 }
 
 // fn main() {

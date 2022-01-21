@@ -1,6 +1,7 @@
 //! MPI Routines
 pub use funspace::mpi::all_gather_sum;
 pub use funspace::mpi::broadcast_scalar;
+pub use funspace::mpi::gather_sum;
 pub use funspace::mpi::initialize;
 pub use funspace::mpi::space_traits::BaseSpaceMpi;
 pub use funspace::mpi::Communicator;

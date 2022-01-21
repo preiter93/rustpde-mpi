@@ -6,17 +6,12 @@ use crate::io::read_write_hdf5::{read_scalar_from_hdf5, write_scalar_to_hdf5};
 use crate::io::traits::ReadWrite;
 use crate::io::Result;
 use ndarray::Array2;
+use std::collections::HashMap;
 
 /// Collection of fields for statistics
 pub struct Statistics<T, S> {
-    /// Viscosity
-    pub nu: f64,
-    /// Diffusivity
-    pub ka: f64,
-    /// Rayleigh number
-    pub ra: f64,
-    /// Prandtl number
-    pub pr: f64,
+    /// Parameter (e.g. diffusivities, ra, pr, ...)
+    pub params: HashMap<&'static str, f64>,
     /// Scale of phsical dimension \[scale_x, scale_y\]
     pub scale: [f64; 2],
     /// Additional field for calculations
@@ -53,10 +48,7 @@ where
     /// Allocate statistics
     #[allow(clippy::similar_names)]
     pub fn new(navier: &Navier2D<T, S>, save_stat: f64, write_stat: f64) -> Self {
-        let nu = navier.nu;
-        let ka = navier.ka;
-        let ra = navier.ra;
-        let pr = navier.pr;
+        let params = navier.params.clone();
         let scale = navier.scale;
         let space: S = navier.field.space.clone();
         let field = Field2::new(&space);
@@ -68,10 +60,7 @@ where
         let tot_time = navier.time;
         let num_save = 0;
         Self {
-            nu,
-            ka,
-            ra,
-            pr,
+            params,
             scale,
             field,
             t_avg,
@@ -87,6 +76,9 @@ where
     }
 
     /// Update Statistics
+    ///
+    /// # Panics
+    /// If *ka* is not in params
     #[allow(clippy::similar_names)]
     #[allow(clippy::cast_precision_loss)]
     pub fn update(&mut self, that: &Array2<T>, uxhat: &Array2<T>, uyhat: &Array2<T>, time: f64) {
@@ -106,7 +98,8 @@ where
             .assign(&((&self.t_avg.vhat * weight + that) / (weight + 1.)));
         self.ux_avg.vhat.assign(&uxhat);
         self.uy_avg.vhat.assign(&uyhat);
-        nusselt(&mut self.field, &that, &uyhat, self.ka, &self.scale);
+        let ka = self.params.get("ka").unwrap();
+        nusselt(&mut self.field, &that, &uyhat, *ka, &self.scale);
         self.nusselt.vhat.assign(&self.field.vhat);
         // Update time info
         self.num_save += 1;
@@ -158,10 +151,10 @@ where
         write_scalar_to_hdf5(&filename, "tot_time", self.tot_time)?;
         write_scalar_to_hdf5(&filename, "avg_time", self.avg_time)?;
         write_scalar_to_hdf5(&filename, "num_save", self.num_save)?;
-        write_scalar_to_hdf5(&filename, "ra", self.ra)?;
-        write_scalar_to_hdf5(&filename, "pr", self.pr)?;
-        write_scalar_to_hdf5(&filename, "nu", self.nu)?;
-        write_scalar_to_hdf5(&filename, "ka", self.ka)?;
+        // Write scalars
+        for (key, value) in &self.params {
+            write_scalar_to_hdf5(&filename, key, *value)?;
+        }
         Ok(())
     }
 

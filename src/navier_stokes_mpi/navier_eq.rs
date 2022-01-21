@@ -1,13 +1,14 @@
 //! Implement equations for navier-stokes simulations
-use super::functions::{conv_term, dealias};
-use super::Navier2DMpi;
+use super::functions::{conv_term, dealias, norm_l2_c64, norm_l2_f64};
+use super::navier::Navier2DMpi;
 use crate::field::BaseSpace;
-use crate::mpi::BaseSpaceMpi;
+use crate::mpi::{all_gather_sum, BaseSpaceMpi};
 use crate::solver::Solve;
 use crate::solver_mpi::hholtz_adi::HholtzAdiMpi;
 use crate::solver_mpi::poisson::PoissonMpi;
 use crate::types::Scalar;
 use ndarray::{Array2, Ix2, ScalarOperand};
+use num_complex::Complex;
 use num_traits::Zero;
 use std::ops::{Add, AddAssign, Mul, MulAssign, SubAssign};
 
@@ -26,11 +27,43 @@ where
         self.rhs.to_owned()
     }
 
-    /// Divergence: duxdx + duydy
-    pub(crate) fn div_global(&mut self) -> Array2<T> {
-        let mut rhs = self.ux.gradient([1, 0], Some(self.scale));
-        rhs += &self.uy.gradient([0, 1], Some(self.scale));
-        rhs.to_owned()
+    // /// Divergence: duxdx + duydy
+    // pub(crate) fn div_global(&mut self) -> Array2<T> {
+    //     let mut rhs = self.ux.gradient([1, 0], Some(self.scale));
+    //     rhs += &self.uy.gradient([0, 1], Some(self.scale));
+    //     rhs.to_owned()
+    // }
+}
+
+/// Return L2 norm of divergence
+pub trait DivNorm {
+    /// Return L2 norm of divergence
+    fn div_norm(&mut self) -> f64;
+}
+
+impl<S> DivNorm for Navier2DMpi<'_, f64, S>
+where
+    S: BaseSpace<f64, 2, Physical = f64, Spectral = f64> + BaseSpaceMpi<f64, 2>,
+{
+    /// Return L2 norm of divergence
+    fn div_norm(&mut self) -> f64 {
+        let div = norm_l2_f64(&self.div()).powi(2);
+        let mut div_global = 0.;
+        all_gather_sum(&self.universe, &div, &mut div_global);
+        div_global.sqrt()
+    }
+}
+
+impl<S> DivNorm for Navier2DMpi<'_, Complex<f64>, S>
+where
+    S: BaseSpace<f64, 2, Physical = f64, Spectral = Complex<f64>> + BaseSpaceMpi<f64, 2>,
+{
+    /// Return L2 norm of divergence
+    fn div_norm(&mut self) -> f64 {
+        let div = norm_l2_c64(&self.div()).powi(2);
+        let mut div_global = 0.;
+        all_gather_sum(&self.universe, &div, &mut div_global);
+        div_global.sqrt()
     }
 }
 
@@ -102,7 +135,7 @@ where
     #[allow(clippy::similar_names)]
     pub(crate) fn correct_velocity(&mut self, c: f64) {
         let c_t: T = (-c).into();
-        let mut dp_dx: Array2<T> = self.pseu.gradient_mpi([1, 0], Some(self.scale));
+        let mut dp_dx = self.pseu.gradient_mpi([1, 0], Some(self.scale));
         let mut dp_dy = self.pseu.gradient_mpi([0, 1], Some(self.scale));
         dp_dx *= c_t;
         dp_dy *= c_t;
@@ -122,7 +155,8 @@ where
     /// presnew = pres - nu * div + 1/dt * pseu
     /// $$
     pub(crate) fn update_pres(&mut self, div: &Array2<T>) {
-        let a: f64 = -1. * self.nu;
+        let nu = self.params.get("nu").unwrap();
+        let a: f64 = -1. * *nu;
         let b: f64 = 1. / self.dt;
         self.pres.vhat_x_pen = &self.pres.vhat_x_pen
             + &div.mapv(|x| x * a)
@@ -203,8 +237,9 @@ where
         self.rhs += &self.temp.to_ortho_mpi();
         // + diffusion bc contribution
         if let Some(field) = &self.tempbc {
-            self.rhs += &(field.gradient_mpi([2, 0], Some(self.scale)) * self.dt * self.ka);
-            self.rhs += &(field.gradient_mpi([0, 2], Some(self.scale)) * self.dt * self.ka);
+            let ka = self.params.get("ka").unwrap();
+            self.rhs += &(field.gradient_mpi([2, 0], Some(self.scale)) * self.dt * *ka);
+            self.rhs += &(field.gradient_mpi([0, 2], Some(self.scale)) * self.dt * *ka);
         }
         // + convection
         let conv = self.conv_temp(ux, uy) * self.dt;

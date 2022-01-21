@@ -128,6 +128,7 @@ pub mod field_mpi;
 pub mod io;
 pub mod mpi;
 pub mod navier_stokes;
+pub mod navier_stokes_lnse;
 pub mod navier_stokes_mpi;
 pub mod solver;
 pub mod solver_mpi;

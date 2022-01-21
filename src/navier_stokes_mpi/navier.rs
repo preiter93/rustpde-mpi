@@ -49,14 +49,8 @@ pub struct Navier2DMpi<'a, T, S> {
     pub tempbc: Option<Field2Mpi<T, S>>,
     /// Field for pressure boundary condition
     pub presbc: Option<Field2Mpi<T, S>>,
-    /// Viscosity
-    pub nu: f64,
-    /// Thermal diffusivity
-    pub ka: f64,
-    /// Rayleigh number
-    pub ra: f64,
-    /// Prandtl number
-    pub pr: f64,
+    /// Parameter (e.g. diffusivities, ra, pr, ...)
+    pub params: HashMap<&'static str, f64>,
     /// Time
     pub time: f64,
     /// Time step size
@@ -74,8 +68,8 @@ pub struct Navier2DMpi<'a, T, S> {
     pub statistics: Option<Statistics<T, S>>,
 }
 
-type Space2R2r<'a> = Space2Mpi<'a, BaseR2r<f64>, BaseR2r<f64>>;
-type Space2R2c<'a> = Space2Mpi<'a, BaseR2c<f64>, BaseR2r<f64>>;
+pub(crate) type Space2R2r<'a> = Space2Mpi<'a, BaseR2r<f64>, BaseR2r<f64>>;
+pub(crate) type Space2R2c<'a> = Space2Mpi<'a, BaseR2c<f64>, BaseR2r<f64>>;
 
 impl<T, S> Navier2DMpi<'_, T, S> {
     /// Return current rank
@@ -111,6 +105,57 @@ where
 
 impl<T, S> Navier2DMpi<'_, T, S>
 where
+    S: BaseSpace<f64, 2, Physical = f64, Spectral = T> + BaseSpaceMpi<f64, 2>,
+    T: Scalar + Mul<f64, Output = T> + Div<f64, Output = T>,
+{
+    /// Returns Nusselt number (heat flux at the plates)
+    /// $$
+    /// Nu = \langle - dTdz \rangle\\_x (0/H))
+    /// $$
+    pub fn eval_nu_mpi(&mut self) -> f64 {
+        use super::functions::eval_nu_mpi;
+        eval_nu_mpi(&mut self.temp, &mut self.field, &self.tempbc, &self.scale)
+    }
+
+    /// Returns volumetric Nusselt number
+    /// $$
+    /// Nuvol = \langle uy*T/kappa - dTdz \rangle\\_V
+    /// $$
+    ///
+    /// # Panics
+    /// If *ka* is not in params
+    pub fn eval_nuvol_mpi(&mut self) -> f64 {
+        use super::functions::eval_nuvol_mpi;
+        let ka = self.params.get("ka").unwrap();
+        eval_nuvol_mpi(
+            &mut self.temp,
+            &mut self.uy,
+            &mut self.field,
+            &self.tempbc,
+            *ka,
+            &self.scale,
+        )
+    }
+
+    /// Returns Reynolds number based on kinetic energy
+    ///
+    /// # Panics
+    /// If *nu* is not in params
+    pub fn eval_re_mpi(&mut self) -> f64 {
+        use super::functions::eval_re_mpi;
+        let nu = self.params.get("nu").unwrap();
+        eval_re_mpi(
+            &mut self.ux,
+            &mut self.uy,
+            &mut self.field,
+            *nu,
+            &self.scale,
+        )
+    }
+}
+
+impl<T, S> Navier2DMpi<'_, T, S>
+where
     S: BaseSpace<f64, 2, Physical = f64, Spectral = T>,
     T: Scalar + Mul<f64, Output = T> + Div<f64, Output = T>,
 {
@@ -127,26 +172,34 @@ where
     /// $$
     /// Nuvol = \langle uy*T/kappa - dTdz \rangle\\_V
     /// $$
+    ///
+    /// # Panics
+    /// If *ka* is not in params
     pub fn eval_nuvol(&mut self) -> f64 {
         use super::functions::eval_nuvol;
+        let ka = self.params.get("ka").unwrap();
         eval_nuvol(
             &mut self.temp,
             &mut self.uy,
             &mut self.field,
             &self.tempbc,
-            self.ka,
+            *ka,
             &self.scale,
         )
     }
 
     /// Returns Reynolds number based on kinetic energy
+    ///
+    /// # Panics
+    /// If *nu* is not in params
     pub fn eval_re(&mut self) -> f64 {
         use super::functions::eval_re;
+        let nu = self.params.get("nu").unwrap();
         eval_re(
             &mut self.ux,
             &mut self.uy,
             &mut self.field,
-            self.nu,
+            *nu,
             &self.scale,
         )
     }
@@ -258,6 +311,11 @@ impl<'a> Navier2DMpi<'_, f64, Space2R2r<'a>>
         // diffusivities
         let nu = get_nu(ra, pr, scale[1] * 2.0);
         let ka = get_ka(ra, pr, scale[1] * 2.0);
+        let mut params = HashMap::new();
+        params.insert("ra", ra);
+        params.insert("pr", pr);
+        params.insert("nu", nu);
+        params.insert("ka", ka);
         // velocities
         let mut ux = Field2Mpi::new(&Space2Mpi::new(
             &cheb_dirichlet(nx),
@@ -345,10 +403,7 @@ impl<'a> Navier2DMpi<'_, f64, Space2R2r<'a>>
             rhs,
             tempbc,
             presbc,
-            nu,
-            ka,
-            ra,
-            pr,
+            params,
             time: 0.0,
             dt,
             scale,
@@ -405,6 +460,11 @@ impl<'a> Navier2DMpi<'_, Complex<f64>, Space2R2c<'a>>
         // diffusivities
         let nu = get_nu(ra, pr, scale[1] * 2.0);
         let ka = get_ka(ra, pr, scale[1] * 2.0);
+        let mut params = HashMap::new();
+        params.insert("ra", ra);
+        params.insert("pr", pr);
+        params.insert("nu", nu);
+        params.insert("ka", ka);
 
         // velocities
         let mut ux = Field2Mpi::new(&Space2Mpi::new(
@@ -493,10 +553,7 @@ impl<'a> Navier2DMpi<'_, Complex<f64>, Space2R2c<'a>>
             rhs,
             tempbc,
             presbc,
-            nu,
-            ka,
-            ra,
-            pr,
+            params,
             time: 0.0,
             dt,
             scale,
@@ -514,11 +571,10 @@ impl<'a> Navier2DMpi<'_, Complex<f64>, Space2R2c<'a>>
 
 macro_rules! impl_integrate_for_navier {
     ($s: ty, $norm: ident) => {
-
         impl<S> Integrate for Navier2DMpi<'_, $s, S>
         where
             S: BaseSpace<f64, 2, Physical = f64, Spectral = $s>
-            + BaseSpaceMpi<f64, 2, Physical = f64, Spectral = $s>,
+                + BaseSpaceMpi<f64, 2, Physical = f64, Spectral = $s>,
         {
             /// Update 1 timestep
             fn update(&mut self) {
@@ -557,54 +613,9 @@ macro_rules! impl_integrate_for_navier {
             }
 
             fn callback(&mut self) {
-                use std::io::Write;
-                self.gather();
-                if self.nrank() == 0 {
-                    // Out directory
-                    std::fs::create_dir_all("data").unwrap();
-
-                    // Write flow field
-                    let fname = format!("data/flow{:0>8.2}.h5", self.time);
-                    if let Some(dt_save) = &self.write_intervall {
-                        if (self.time + self.dt/2.) % dt_save < self.dt {
-                            self.write_unwrap(&fname);
-                        }
-                    } else {
-                        self.write_unwrap(&fname);
-                    }
-
-                    // // Write statistics
-                    // let statname = "data/statistics.h5";
-                    // if let Some(ref mut statistics) = self.statistics {
-                    //     if (self.time + self.dt/2.) % statistics.save_stat < self.dt {
-                    //         statistics.update(&self.temp.to_ortho(), &self.ux.to_ortho(), &self.uy.to_ortho(), self.time);
-                    //     }
-                    //     if (self.time + self.dt/2.) % statistics.write_stat < self.dt {
-                    //         statistics.write(&statname);
-                    //     }
-                    // }
-
-
-                    // I/O
-                    let (div, nu, nuv, re) = (self.div_global(), self.eval_nu(), self.eval_nuvol(), self.eval_re());
-                    println!(
-                        "time = {:5.3}      |div| = {:4.2e}     Nu = {:5.3e}     Nuv = {:5.3e}    Re = {:5.3e}",
-                        self.time,
-                        $norm(&div),
-                        nu,
-                        nuv,
-                        re,
-                    );
-                    let mut file = std::fs::OpenOptions::new()
-                        .write(true)
-                        .append(true)
-                        .create(true)
-                        .open("data/info.txt")
-                        .unwrap();
-                    if let Err(e) = writeln!(file, "{} {} {} {}", self.time, nu, nuv, re) {
-                        eprintln!("Couldn't write to file: {}", e);
-                    }
-                }
+                let flowname = format!("data/flow{:0>8.2}.h5", self.time);
+                let io_name = "data/info.txt";
+                self.callback_from_filename(&flowname, io_name, false);
             }
 
             fn exit(&mut self) -> bool {

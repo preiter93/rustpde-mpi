@@ -26,7 +26,7 @@
 //! ```
 use super::boundary_conditions::{bc_hc, bc_hc_periodic, bc_rbc, bc_rbc_periodic};
 use super::boundary_conditions::{pres_bc_rbc, pres_bc_rbc_periodic};
-use super::functions::{apply_cos_sin, apply_random_disturbance, apply_sin_cos};
+use super::functions::{apply_cos_sin, apply_sin_cos, random_field};
 use super::functions::{get_ka, get_nu, norm_l2_c64, norm_l2_f64};
 use super::statistics::Statistics;
 use crate::bases::{cheb_dirichlet, cheb_dirichlet_neumann, cheb_neumann, chebyshev, fourier_r2c};
@@ -41,8 +41,8 @@ use num_traits::Zero;
 use std::collections::HashMap;
 use std::ops::{Div, Mul};
 
-type Space2R2r = Space2<BaseR2r<f64>, BaseR2r<f64>>;
-type Space2R2c = Space2<BaseR2c<f64>, BaseR2r<f64>>;
+pub(crate) type Space2R2r = Space2<BaseR2r<f64>, BaseR2r<f64>>;
+pub(crate) type Space2R2c = Space2<BaseR2c<f64>, BaseR2r<f64>>;
 
 /// Container for Navier Stokes simulations
 pub struct Navier2D<T, S> {
@@ -64,14 +64,8 @@ pub struct Navier2D<T, S> {
     pub presbc: Option<Field2<T, S>>,
     /// Buffer
     pub(crate) rhs: Array2<T>,
-    /// Viscosity
-    pub nu: f64,
-    /// Thermal diffusivity
-    pub ka: f64,
-    /// Rayleigh number
-    pub ra: f64,
-    /// Prandtl number
-    pub pr: f64,
+    /// Parameter (e.g. diffusivities, ra, pr, ...)
+    pub params: HashMap<&'static str, f64>,
     /// Time
     pub time: f64,
     /// Time step size
@@ -122,26 +116,34 @@ where
     /// $$
     /// Nuvol = \langle uy*T/kappa - dTdz \rangle\\_V
     /// $$
+    ///
+    /// # Panics
+    /// If *ka* is not in params
     pub fn eval_nuvol(&mut self) -> f64 {
         use super::functions::eval_nuvol;
+        let ka = self.params.get("ka").unwrap();
         eval_nuvol(
             &mut self.temp,
             &mut self.uy,
             &mut self.field,
             &self.tempbc,
-            self.ka,
+            *ka,
             &self.scale,
         )
     }
 
     /// Returns Reynolds number based on kinetic energy
+    ///
+    /// # Panics
+    /// If *nu* is not in params
     pub fn eval_re(&mut self) -> f64 {
         use super::functions::eval_re;
+        let nu = self.params.get("nu").unwrap();
         eval_re(
             &mut self.ux,
             &mut self.uy,
             &mut self.field,
-            self.nu,
+            *nu,
             &self.scale,
         )
     }
@@ -168,9 +170,9 @@ where
 
     /// Initialize all fields with random disturbances
     pub fn random_disturbance(&mut self, amp: f64) {
-        apply_random_disturbance(&mut self.temp, amp);
-        apply_random_disturbance(&mut self.ux, amp);
-        apply_random_disturbance(&mut self.uy, amp);
+        random_field(&mut self.temp, amp);
+        random_field(&mut self.ux, amp);
+        random_field(&mut self.uy, amp);
         // Remove bc base from temp
         if let Some(x) = &self.tempbc {
             self.temp.v = &self.temp.v - &x.v;
@@ -223,6 +225,11 @@ impl Navier2D<f64, Space2R2r>
         // diffusivities
         let nu = get_nu(ra, pr, scale[1] * 2.0);
         let ka = get_ka(ra, pr, scale[1] * 2.0);
+        let mut params = HashMap::new();
+        params.insert("ra", ra);
+        params.insert("pr", pr);
+        params.insert("nu", nu);
+        params.insert("ka", ka);
         // velocities
         let mut ux = Field2::new(&Space2::new(&cheb_dirichlet(nx), &cheb_dirichlet(ny)));
         let mut uy = Field2::new(&Space2::new(&cheb_dirichlet(nx), &cheb_dirichlet(ny)));
@@ -282,10 +289,7 @@ impl Navier2D<f64, Space2R2r>
             rhs,
             tempbc,
             presbc,
-            nu,
-            ka,
-            ra,
-            pr,
+            params,
             time: 0.0,
             dt,
             scale,
@@ -342,6 +346,11 @@ impl Navier2D<Complex<f64>, Space2R2c>
         // diffusivities
         let nu = get_nu(ra, pr, scale[1] * 2.0);
         let ka = get_ka(ra, pr, scale[1] * 2.0);
+        let mut params = HashMap::new();
+        params.insert("ra", ra);
+        params.insert("pr", pr);
+        params.insert("nu", nu);
+        params.insert("ka", ka);
         // velocities
         let mut ux = Field2::new(&Space2::new(&fourier_r2c(nx), &cheb_dirichlet(ny)));
         let mut uy = Field2::new(&Space2::new(&fourier_r2c(nx), &cheb_dirichlet(ny)));
@@ -400,10 +409,7 @@ impl Navier2D<Complex<f64>, Space2R2c>
             rhs,
             tempbc,
             presbc,
-            nu,
-            ka,
-            ra,
-            pr,
+            params,
             time: 0.0,
             dt,
             scale,
@@ -423,7 +429,6 @@ impl Navier2D<Complex<f64>, Space2R2c>
 
 macro_rules! impl_integrate_for_navier {
     ($s: ty, $norm: ident) => {
-
         impl<S> Integrate for Navier2D<$s, S>
         where
             S: BaseSpace<f64, 2, Physical = f64, Spectral = $s>,
@@ -468,54 +473,9 @@ macro_rules! impl_integrate_for_navier {
             }
 
             fn callback(&mut self) {
-                use std::io::Write;
-
-                // Write hdf5 file
-                std::fs::create_dir_all("data").unwrap();
-
-                // Write flow field
-                //let fname = format!("data/flow{:.*}.h5", 3, self.time);
-                let fname = format!("data/flow{:0>8.2}.h5", self.time);
-                if let Some(dt_save) = &self.write_intervall {
-                    if (self.time + self.dt/2.) % dt_save < self.dt {
-                        self.write_unwrap(&fname);
-                    }
-                } else {
-                    self.write_unwrap(&fname);
-                }
-
-                // Write statistics
-                let statname = "data/statistics.h5";
-                if let Some(ref mut statistics) = self.statistics {
-                    // Update
-                    if (self.time + self.dt/2.) % statistics.save_stat < self.dt {
-                        statistics.update(&self.temp.to_ortho(), &self.ux.to_ortho(), &self.uy.to_ortho(), self.time);
-                    }
-                    // Write
-                    if (self.time + self.dt/2.) % statistics.write_stat < self.dt {
-                        statistics.write_unwrap(&statname);
-                    }
-                }
-
-                // I/O
-                let (div, nu, nuv, re) = (self.div(), self.eval_nu(), self.eval_nuvol(), self.eval_re());
-                println!(
-                    "time = {:4.2}      |div| = {:4.2e}     Nu = {:5.3e}     Nuv = {:5.3e}    Re = {:5.3e}",
-                    self.time,
-                    $norm(&div),
-                    nu,
-                    nuv,
-                    re,
-                );
-                let mut file = std::fs::OpenOptions::new()
-                    .write(true)
-                    .append(true)
-                    .create(true)
-                    .open("data/info.txt")
-                    .unwrap();
-                if let Err(e) = writeln!(file, "{} {} {} {}", self.time, nu, nuv, re) {
-                    eprintln!("Couldn't write to file: {}", e);
-                }
+                let flowname = format!("data/flow{:0>8.2}.h5", self.time);
+                let io_name = "data/info.txt";
+                self.callback_from_filename(&flowname, io_name, false);
             }
 
             fn exit(&mut self) -> bool {

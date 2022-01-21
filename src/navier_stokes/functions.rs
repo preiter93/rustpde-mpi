@@ -125,7 +125,7 @@ where
 }
 
 /// Apply random disturbance [-c, c]
-pub fn apply_random_disturbance<S, T2>(field: &mut Field2<T2, S>, c: f64)
+pub fn random_field<S, T2>(field: &mut Field2<T2, S>, c: f64)
 where
     S: BaseSpace<f64, 2, Physical = f64, Spectral = T2>,
 {
@@ -155,13 +155,11 @@ where
     T2: Scalar + Mul<A, Output = T2>,
 {
     let two = A::one() + A::one();
-    //self.temp.backward();
     field.vhat.assign(&temp.to_ortho());
     if let Some(x) = &tempbc {
         field.vhat = &field.vhat + &x.to_ortho();
     }
-    let mut dtdz = field.gradient([0, 1], None) * -A::one();
-    dtdz = dtdz * (A::one() / (scale[1] / two));
+    let dtdz = field.gradient([0, 1], None) * -(-two / scale[1]);
     field.vhat.assign(&dtdz);
     field.backward();
     let x_avg = field.average_axis(0);

@@ -14,7 +14,7 @@ use num_traits::identities::Zero;
 use rustpde::bases::fourier_r2c;
 use rustpde::bases::BaseR2c;
 use rustpde::field::{Field1, Space1};
-use rustpde::io::{write_scalar_to_hdf5, Result};
+use rustpde::io::Result;
 use rustpde::Integrate;
 
 type Space1R2c = Space1<BaseR2c<f64>>;
@@ -118,14 +118,15 @@ impl SwiftHohenberg1D {
     }
 
     fn _write(&mut self, filename: &str) -> Result<()> {
-        use rustpde::field::WriteField;
+        use rustpde::io::read_write_hdf5::write_scalar_to_hdf5;
+        use rustpde::io::traits::ReadWrite;
         // Write field
         self.theta.backward();
-        self.theta.write(&filename, Some("temp"));
+        self.theta.write(&filename, "temp")?;
         // Write scalars
-        write_scalar_to_hdf5(&filename, "time", None, self.time)?;
-        write_scalar_to_hdf5(&filename, "dt", None, self.dt)?;
-        write_scalar_to_hdf5(&filename, "r", None, self.r)?;
+        write_scalar_to_hdf5(&filename, "time", self.time)?;
+        write_scalar_to_hdf5(&filename, "dt", self.dt)?;
+        write_scalar_to_hdf5(&filename, "r", self.r)?;
         Ok(())
     }
 

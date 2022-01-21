@@ -117,8 +117,7 @@ where
     if let Some(x) = &tempbc {
         field.vhat = &field.vhat + &x.to_ortho();
     }
-    let mut dtdz = field.gradient([0, 1], None) * -A::one();
-    dtdz = dtdz * (A::one() / (scale[1] / two));
+    let dtdz = field.gradient([0, 1], None) * (-two / scale[1]);
     field.vhat.assign(&dtdz);
     field.backward();
     let x_avg = field.average_axis(0);
@@ -144,13 +143,12 @@ where
     T2: Scalar + Div<A, Output = T2>,
 {
     let two = A::one() + A::one();
-    // temp
+    // temp * uy
     field.vhat.assign(&temp.to_ortho());
     if let Some(x) = &tempbc {
         field.vhat = &field.vhat + &x.to_ortho();
     }
     field.backward();
-    // uy
     uy.backward();
     let uy_temp = &field.v * &uy.v;
     // dtdz
@@ -188,6 +186,116 @@ where
     let two = A::one() + A::one();
     field.v *= two * scale[1] / nu;
     field.average()
+}
+
+/// Returns Nusselt number (heat flux at the plates)
+/// $$
+/// Nu = \langle - dTdz \rangle\\_x (0/H))
+/// $$
+pub fn eval_nu_mpi<A, T2, S>(
+    temp: &mut FieldBaseMpi<A, A, T2, S, 2>,
+    field: &mut FieldBaseMpi<A, A, T2, S, 2>,
+    tempbc: &Option<FieldBaseMpi<A, A, T2, S, 2>>,
+    scale: &[A; 2],
+) -> A
+where
+    A: FloatNum + crate::mpi::Equivalence + std::iter::Sum,
+    Complex<A>: ScalarOperand,
+    S: BaseSpace<A, 2, Physical = A, Spectral = T2>
+        + BaseSpaceMpi<A, 2, Physical = A, Spectral = T2>,
+    T2: Scalar + Mul<A, Output = T2>,
+{
+    let two = A::one() + A::one();
+    field.vhat_x_pen.assign(&temp.to_ortho_mpi());
+    if let Some(bc) = &tempbc {
+        field.vhat_x_pen = &field.vhat_x_pen + &bc.to_ortho_mpi();
+    }
+    let dtdz = field.gradient_mpi([0, 1], None) * (-two / scale[1]);
+    field.vhat_x_pen.assign(&dtdz);
+    field.backward_mpi();
+    let x_avg = field.average_axis_mpi(0);
+    // check wether rank holds bottom or top, both or none
+    let nrank = temp.space.get_nrank();
+    let nprocs = temp.space.get_nprocs();
+    let nu = if nrank == 0 && nrank == nprocs - 1 {
+        x_avg[x_avg.len() - 1] + x_avg[0]
+    } else if nrank == 0 {
+        x_avg[0]
+    } else if nrank == nprocs - 1 {
+        x_avg[x_avg.len() - 1]
+    } else {
+        A::zero()
+    };
+    let mut nu_global = A::zero();
+    crate::mpi::all_gather_sum(&temp.space.get_universe(), &nu, &mut nu_global);
+    nu_global / two
+}
+
+/// Returns volumetric Nusselt number
+/// $$
+/// Nuvol = \langle uy*T/kappa - dTdz \rangle\\_V
+/// $$
+pub fn eval_nuvol_mpi<A, T2, S>(
+    temp: &mut FieldBaseMpi<A, A, T2, S, 2>,
+    uy: &mut FieldBaseMpi<A, A, T2, S, 2>,
+    field: &mut FieldBaseMpi<A, A, T2, S, 2>,
+    tempbc: &Option<FieldBaseMpi<A, A, T2, S, 2>>,
+    kappa: A,
+    scale: &[A; 2],
+) -> A
+where
+    A: FloatNum + crate::mpi::Equivalence + std::iter::Sum,
+    Complex<A>: ScalarOperand,
+    S: BaseSpace<A, 2, Physical = A, Spectral = T2>
+        + BaseSpaceMpi<A, 2, Physical = A, Spectral = T2>,
+    T2: Scalar + Div<A, Output = T2>,
+{
+    let two = A::one() + A::one();
+    // temp * uy
+    field.vhat_x_pen.assign(&temp.to_ortho_mpi());
+    if let Some(bc) = &tempbc {
+        field.vhat_x_pen = &field.vhat_x_pen + &bc.to_ortho_mpi();
+    }
+    field.backward_mpi();
+    uy.backward_mpi();
+    let uy_temp = &field.v_y_pen * &uy.v_y_pen;
+    // dtdz
+    let dtdz = field.gradient_mpi([0, 1], None) / (scale[1] * -A::one());
+    field.vhat_x_pen.assign(&dtdz);
+    field.backward_mpi();
+    let dtdz = &field.v_y_pen;
+    // Nuvol
+    field.v_y_pen = (dtdz + uy_temp / kappa) * two * scale[1];
+    //average
+    field.average_mpi()
+}
+
+/// Returns Reynolds number base on kinetic energy
+/// $$
+/// Re = U*L / nu
+/// U = \sqrt{(ux^2 + uy^2)}
+/// $$
+pub fn eval_re_mpi<A, T2, S>(
+    ux: &mut FieldBaseMpi<A, A, T2, S, 2>,
+    uy: &mut FieldBaseMpi<A, A, T2, S, 2>,
+    field: &mut FieldBaseMpi<A, A, T2, S, 2>,
+    nu: A,
+    scale: &[A; 2],
+) -> A
+where
+    A: FloatNum + crate::mpi::Equivalence + std::iter::Sum,
+    Complex<A>: ScalarOperand,
+    S: BaseSpace<A, 2, Physical = A, Spectral = T2>
+        + BaseSpaceMpi<A, 2, Physical = A, Spectral = T2>,
+    T2: Scalar + Div<A, Output = T2>,
+{
+    ux.backward_mpi();
+    uy.backward_mpi();
+    let ekin = &ux.v_y_pen.mapv(|x| x.powi(2)) + &uy.v_y_pen.mapv(|x| x.powi(2));
+    field.v_y_pen.assign(&ekin.mapv(A::sqrt));
+    let two = A::one() + A::one();
+    field.v_y_pen *= two * scale[1] / nu;
+    field.average_mpi()
 }
 
 /// Construct field f(x,y) = amp \* sin(pi\*m)cos(pi\*n)
