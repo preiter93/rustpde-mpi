@@ -4,6 +4,7 @@ import glob
 import re
 import matplotlib.pyplot as plt
 from utils.plot_utils import plot_contour
+from utils.plot_utils import plot_streamplot
 import os.path
 import ffmpeg
 
@@ -44,12 +45,13 @@ for i, f in enumerate(fname[i0:i9:step]):
 
     with h5py.File(filename, "r") as f:
         t = np.array(f["temp/v"])
-        #u = np.array(f["ux/v"])
-        #v = np.array(f["uy/v"])
-        x = np.array(f["x"])
-        y = np.array(f["y"])
+        u = np.array(f["ux/v"])
+        v = np.array(f["uy/v"])
+        x = np.array(f["temp/x"])
+        y = np.array(f["temp/y"])
 
     print("Plot {:}".format(filename))
-    fig, ax = plot_contour(x, y, t, return_fig=True)
+    # fig, ax = plot_contour(x, y, t, return_fig=True)
+    fig, ax = plot_streamplot(x, y, t, u, v, return_fig=True)
     fig.savefig(figname, dpi=200, bbox_inches="tight")
     plt.close("all")

@@ -1,15 +1,7 @@
-//! Run example:
-//!
-//! cargo mpirun --np 2 --bin rustpde --release
-//!
-//! Important: Disable obenblas multithreading:
-//! ```
-//! export OPENBLAS_NUM_THREADS=1
-//! ```
 //! Gradient based optimization to find fastest growing mode
 //!
 //! cargo run --release --example navier_lnse_opt
-//
+
 fn main() {
     use num_complex::Complex;
     use num_traits::identities::Zero;
@@ -22,16 +14,16 @@ fn main() {
     let mut alpha = 1.0;
     let (beta1, beta2) = (0.5, 0.5);
     let energy_constraint = 1e-4;
-    let max_time = 20.;
+    let max_time = 10.;
     let max_iter = 10;
 
     // Navier parameter
-    let (nx, ny) = (128, 57);
-    let ra = 1e5;
+    let (nx, ny) = (64, 57);
+    let ra = 3e3;
     let pr = 0.1;
-    let aspect = 2.;
+    let aspect = 1.;
     let dt = 0.01;
-    let mut navier = Navier2DLnse::new_periodic(nx, ny, ra, pr, dt, aspect, "rbc");
+    let mut navier = Navier2DLnse::new_periodic(nx, ny, ra, pr, dt, aspect, "hc");
     navier.init_random(1e-3);
     navier.write_unwrap("base.h5");
 
@@ -111,28 +103,5 @@ fn main() {
     // Finally evolve field
     println!("Evolve field ...");
     navier.read_unwrap("data/opt_field.h5");
-    navier.reset_time();
     integrate(&mut navier, 20., Some(1.0));
-}
-
-fn main2() {
-    use rustpde::integrate;
-    use rustpde::navier_stokes::Navier2D;
-    // Parameters
-    let (nx, ny) = (128, 57);
-    let ra = 1e4;
-    let pr = 1.;
-    let aspect = 2.0;
-    let dt = 0.1;
-    let mut navier = Navier2D::new_periodic(nx, ny, ra, pr, dt, aspect, "rbc");
-    // if navier.nrank() == 0 {
-    //     navier.write("restart.h5");
-    // }
-    //navier.read_unwrap("restart.h5");
-
-    // Set initial conditions
-    //navier.random_disturbance(1e-2);
-    navier.set_temperature(1e-1, 2., 1.);
-    navier.set_velocity(1e-1, 2., 1.);
-    integrate(&mut navier, 200., Some(1.0));
 }

@@ -2,7 +2,7 @@
 use crate::field::{BaseSpace, Field2, FieldBase};
 use crate::types::FloatNum;
 use crate::types::Scalar;
-use ndarray::{s, Array2, ScalarOperand};
+use ndarray::{s, Array2, ArrayBase, Data, Ix2, ScalarOperand};
 use num_complex::Complex;
 use num_traits::Zero;
 use std::ops::{Div, Mul};
@@ -20,12 +20,12 @@ pub fn get_ka(ra: f64, pr: f64, height: f64) -> f64 {
 }
 
 /// Return l2 norm of real array
-pub fn norm_l2_f64(array: &Array2<f64>) -> f64 {
+pub fn norm_l2_f64<S: Data<Elem = f64>>(array: &ArrayBase<S, Ix2>) -> f64 {
     array.iter().map(|x| x.powi(2)).sum::<f64>().sqrt()
 }
 
 /// Return l2 norm of complex array
-pub fn norm_l2_c64(array: &Array2<Complex<f64>>) -> f64 {
+pub fn norm_l2_c64<S: Data<Elem = Complex<f64>>>(array: &ArrayBase<S, Ix2>) -> f64 {
     array
         .iter()
         .map(|x| x.re.powi(2) + x.im.powi(2))
@@ -159,7 +159,7 @@ where
     if let Some(x) = &tempbc {
         field.vhat = &field.vhat + &x.to_ortho();
     }
-    let dtdz = field.gradient([0, 1], None) * -(-two / scale[1]);
+    let dtdz = field.gradient([0, 1], None) * (-two / scale[1]);
     field.vhat.assign(&dtdz);
     field.backward();
     let x_avg = field.average_axis(0);

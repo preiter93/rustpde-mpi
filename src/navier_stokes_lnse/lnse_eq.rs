@@ -1,18 +1,18 @@
 //! Implement equations for `Navier2DLnse`
 use super::Navier2DLnse;
 use crate::field::BaseSpace;
-use crate::navier_stokes::functions::{conv_term, dealias};
+use crate::navier_stokes::functions::{conv_term, dealias, norm_l2_c64, norm_l2_f64};
 use crate::solver::{hholtz_adi::HholtzAdi, poisson::Poisson, Solve};
 use crate::types::Scalar;
 use ndarray::ScalarOperand;
 use ndarray::{Array2, Ix2};
-use num_traits::Zero;
-use std::ops::{Add, AddAssign, Mul, MulAssign, SubAssign};
+use num_complex::Complex;
+use std::ops::Mul;
 
 /// General
 impl<T, S> Navier2DLnse<T, S>
 where
-    T: Zero + Clone + Add<T, Output = T>,
+    T: Scalar,
     S: BaseSpace<f64, 2, Physical = f64, Spectral = T>,
 {
     /// Divergence: duxdx + duydy
@@ -21,6 +21,32 @@ where
         self.rhs = &self.rhs + &self.velx.gradient([1, 0], Some(self.scale));
         self.rhs = &self.rhs + &self.vely.gradient([0, 1], Some(self.scale));
         self.rhs.to_owned()
+    }
+}
+
+/// Return L2 norm of divergence
+pub trait DivNorm {
+    /// Return L2 norm of divergence
+    fn div_norm(&mut self) -> f64;
+}
+
+impl<S> DivNorm for Navier2DLnse<f64, S>
+where
+    S: BaseSpace<f64, 2, Physical = f64, Spectral = f64>,
+{
+    /// Return L2 norm of divergence
+    fn div_norm(&mut self) -> f64 {
+        norm_l2_f64(&self.div())
+    }
+}
+
+impl<S> DivNorm for Navier2DLnse<Complex<f64>, S>
+where
+    S: BaseSpace<f64, 2, Physical = f64, Spectral = Complex<f64>>,
+{
+    /// Return L2 norm of divergence
+    fn div_norm(&mut self) -> f64 {
+        norm_l2_c64(&self.div())
     }
 }
 
@@ -203,7 +229,7 @@ where
 impl<T, S> Navier2DLnse<T, S>
 where
     S: BaseSpace<f64, 2, Physical = f64, Spectral = T>,
-    T: Copy + From<f64> + MulAssign + ScalarOperand + Add<T, Output = T> + Mul<f64, Output = T>,
+    T: Scalar + ScalarOperand + From<f64> + Mul<f64, Output = T>,
 {
     /// Correct velocity field.
     /// $$
@@ -243,7 +269,7 @@ where
 impl<T, S> Navier2DLnse<T, S>
 where
     S: BaseSpace<f64, 2, Physical = f64, Spectral = T>,
-    T: Copy + Clone + Zero,
+    T: Scalar,
     Poisson<f64, 2>: Solve<T, Ix2>,
 {
     /// Solve pressure poisson equation
@@ -262,7 +288,7 @@ where
 impl<T, S> Navier2DLnse<T, S>
 where
     S: BaseSpace<f64, 2, Physical = f64, Spectral = T>,
-    T: Copy + Clone + Zero + Scalar + AddAssign + SubAssign + Mul<f64, Output = T>,
+    T: Scalar + Mul<f64, Output = T>,
     HholtzAdi<f64, 2>: Solve<T, Ix2>,
 {
     /// Solve horizontal momentum equation

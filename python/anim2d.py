@@ -39,8 +39,8 @@ for filename in fname[i0:i9:step]:
 
         # Get the data
         v = np.array(f["temp/v"])
-        x = np.array(f["x"])
-        y = np.array(f["y"])
+        x = np.array(f["temp/x"])
+        y = np.array(f["temp/y"])
         V.append(v)
 
 kwargs = {}

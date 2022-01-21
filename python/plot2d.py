@@ -14,6 +14,8 @@ for file in [*glob.glob("*.h5"), *glob.glob("data/*.h5")]:
         fname.append(file)
     except:
         print("No number found in {:}".format(file))
+        time.append(0)
+        fname.append(file)
 idx = np.argsort(time)
 fname = np.array(fname)[idx]
 time = np.array(time)[idx]
@@ -32,7 +34,7 @@ with h5py.File(filename, "r") as f:
     try:
         tbc = np.array(f["tempbc/v"])
     except:
-        tbc = np.zeros(temp.shape())
+        tbc = np.zeros(t.shape)
     try:
         u = np.array(f["ux/v"])
         v = np.array(f["uy/v"])

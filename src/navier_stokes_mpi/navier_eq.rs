@@ -9,15 +9,14 @@ use crate::solver_mpi::poisson::PoissonMpi;
 use crate::types::Scalar;
 use ndarray::{Array2, Ix2, ScalarOperand};
 use num_complex::Complex;
-use num_traits::Zero;
-use std::ops::{Add, AddAssign, Mul, MulAssign, SubAssign};
+use std::ops::Mul;
 
 /// General
 impl<T, S> Navier2DMpi<'_, T, S>
 where
     S: BaseSpace<f64, 2, Physical = f64, Spectral = T>
         + BaseSpaceMpi<f64, 2, Physical = f64, Spectral = T>,
-    T: Zero + Clone + AddAssign,
+    T: Scalar,
 {
     /// Divergence: duxdx + duydy
     pub fn div(&mut self) -> Array2<T> {
@@ -124,7 +123,7 @@ impl<T, S> Navier2DMpi<'_, T, S>
 where
     S: BaseSpace<f64, 2, Physical = f64, Spectral = T>
         + BaseSpaceMpi<f64, 2, Physical = f64, Spectral = T>,
-    T: Copy + From<f64> + MulAssign + ScalarOperand + Add<T, Output = T>,
+    T: Scalar + From<f64> + ScalarOperand,
 {
     /// Correct velocity field.
     /// $$
@@ -148,7 +147,7 @@ impl<T, S> Navier2DMpi<'_, T, S>
 where
     S: BaseSpace<f64, 2, Physical = f64, Spectral = T>
         + BaseSpaceMpi<f64, 2, Physical = f64, Spectral = T>,
-    T: Copy + From<f64> + ScalarOperand + Mul<f64, Output = T> + Add<T, Output = T>,
+    T: Scalar + ScalarOperand + Mul<f64, Output = T>,
 {
     /// Update pressure term
     /// $$
@@ -169,7 +168,7 @@ impl<T, S> Navier2DMpi<'_, T, S>
 where
     S: BaseSpace<f64, 2, Physical = f64, Spectral = T>
         + BaseSpaceMpi<f64, 2, Physical = f64, Spectral = T>,
-    T: Copy + Clone + Zero,
+    T: Scalar,
     PoissonMpi<f64, S, 2>: Solve<T, Ix2>,
 {
     /// Solve pressure poisson equation
@@ -191,7 +190,7 @@ impl<T, S> Navier2DMpi<'_, T, S>
 where
     S: BaseSpace<f64, 2, Physical = f64, Spectral = T>
         + BaseSpaceMpi<f64, 2, Physical = f64, Spectral = T>,
-    T: Copy + Clone + Zero + Scalar + AddAssign + SubAssign + Mul<f64, Output = T>,
+    T: Scalar + Mul<f64, Output = T>,
     HholtzAdiMpi<f64, S, 2>: Solve<T, Ix2>,
 {
     /// Solve horizontal momentum equation
