@@ -18,7 +18,7 @@ fig, ax = plot_streamplot(x, y, t, u, v, return_fig=True)
 fig.savefig("fig.png", bbox_inches="tight", dpi=200)
 plt.show()
 
-#print(np.min(t), np.max(t))
+# print(np.min(t), np.max(t))
 
 # -- Read hd5 file
 filename = "data/grad_fd.h5"
@@ -32,4 +32,4 @@ fig, ax = plot_streamplot(x, y, t, u, v, return_fig=True)
 fig.savefig("fig.png", bbox_inches="tight", dpi=200)
 plt.show()
 
-#print(np.min(t), np.max(t))
+# print(np.min(t), np.max(t))

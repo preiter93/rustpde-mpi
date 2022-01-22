@@ -51,9 +51,9 @@ pub struct Navier2D<T, S> {
     /// Temperature
     pub temp: Field2<T, S>,
     /// Horizontal Velocity
-    pub ux: Field2<T, S>,
+    pub velx: Field2<T, S>,
     /// Vertical Velocity
-    pub uy: Field2<T, S>,
+    pub vely: Field2<T, S>,
     /// Pressure field
     pub pres: Field2<T, S>,
     /// Pseudo pressure
@@ -114,7 +114,7 @@ where
 
     /// Returns volumetric Nusselt number
     /// $$
-    /// Nuvol = \langle uy*T/kappa - dTdz \rangle\\_V
+    /// Nuvol = \langle vely*T/kappa - dTdz \rangle\\_V
     /// $$
     ///
     /// # Panics
@@ -124,7 +124,7 @@ where
         let ka = self.params.get("ka").unwrap();
         eval_nuvol(
             &mut self.temp,
-            &mut self.uy,
+            &mut self.vely,
             &mut self.field,
             &self.tempbc,
             *ka,
@@ -140,8 +140,8 @@ where
         use super::functions::eval_re;
         let nu = self.params.get("nu").unwrap();
         eval_re(
-            &mut self.ux,
-            &mut self.uy,
+            &mut self.velx,
+            &mut self.vely,
             &mut self.field,
             *nu,
             &self.scale,
@@ -155,11 +155,11 @@ where
 {
     /// Initialize velocity with fourier modes
     ///
-    /// ux = amp \* sin(mx)cos(nx)
-    /// uy = -amp \* cos(mx)sin(nx)
+    /// velx = amp \* sin(mx)cos(nx)
+    /// vely = -amp \* cos(mx)sin(nx)
     pub fn set_velocity(&mut self, amp: f64, m: f64, n: f64) {
-        apply_sin_cos(&mut self.ux, amp, m, n);
-        apply_cos_sin(&mut self.uy, -amp, m, n);
+        apply_sin_cos(&mut self.velx, amp, m, n);
+        apply_cos_sin(&mut self.vely, -amp, m, n);
     }
     /// Initialize temperature with fourier modes
     ///
@@ -171,8 +171,8 @@ where
     /// Initialize all fields with random disturbances
     pub fn random_disturbance(&mut self, amp: f64) {
         random_field(&mut self.temp, amp);
-        random_field(&mut self.ux, amp);
-        random_field(&mut self.uy, amp);
+        random_field(&mut self.velx, amp);
+        random_field(&mut self.vely, amp);
         // Remove bc base from temp
         if let Some(x) = &self.tempbc {
             self.temp.v = &self.temp.v - &x.v;
@@ -231,8 +231,8 @@ impl Navier2D<f64, Space2R2r>
         params.insert("nu", nu);
         params.insert("ka", ka);
         // velocities
-        let mut ux = Field2::new(&Space2::new(&cheb_dirichlet(nx), &cheb_dirichlet(ny)));
-        let mut uy = Field2::new(&Space2::new(&cheb_dirichlet(nx), &cheb_dirichlet(ny)));
+        let mut velx = Field2::new(&Space2::new(&cheb_dirichlet(nx), &cheb_dirichlet(ny)));
+        let mut vely = Field2::new(&Space2::new(&cheb_dirichlet(nx), &cheb_dirichlet(ny)));
         // temperature
         let (mut temp, tempbc, presbc) = match bc {
             "rbc" => {
@@ -254,17 +254,17 @@ impl Navier2D<f64, Space2R2r>
         let pseu = Field2::new(&Space2::new(&cheb_neumann(nx), &cheb_neumann(ny)));
         let field = Field2::new(&Space2::new(&chebyshev(nx), &chebyshev(ny)));
         // Scale fields
-        ux.scale(scale);
-        uy.scale(scale);
+        velx.scale(scale);
+        vely.scale(scale);
         temp.scale(scale);
         pres.scale(scale);
         // define solver
-        let solver_ux = HholtzAdi::new(
-            &ux,
+        let solver_velx = HholtzAdi::new(
+            &velx,
             [dt * nu / scale[0].powi(2), dt * nu / scale[1].powi(2)],
         );
-        let solver_uy = HholtzAdi::new(
-            &uy,
+        let solver_vely = HholtzAdi::new(
+            &vely,
             [dt * nu / scale[0].powi(2), dt * nu / scale[1].powi(2)],
         );
         let solver_temp = HholtzAdi::new(
@@ -272,7 +272,7 @@ impl Navier2D<f64, Space2R2r>
             [dt * ka / scale[0].powi(2), dt * ka / scale[1].powi(2)],
         );
         let solver_pres = Poisson::new(&pseu, [1. / scale[0].powi(2), 1. / scale[1].powi(2)]);
-        let solver_hholtz = [solver_ux, solver_uy, solver_temp];
+        let solver_hholtz = [solver_velx, solver_vely, solver_temp];
         let rhs = Array2::zeros(temp.v.raw_dim());
 
         // Diagnostics
@@ -282,8 +282,8 @@ impl Navier2D<f64, Space2R2r>
         let mut navier = Navier2D::<f64, Space2R2r> {
             field,
             temp,
-            ux,
-            uy,
+            velx,
+            vely,
             pres,
             pseu,
             rhs,
@@ -352,8 +352,8 @@ impl Navier2D<Complex<f64>, Space2R2c>
         params.insert("nu", nu);
         params.insert("ka", ka);
         // velocities
-        let mut ux = Field2::new(&Space2::new(&fourier_r2c(nx), &cheb_dirichlet(ny)));
-        let mut uy = Field2::new(&Space2::new(&fourier_r2c(nx), &cheb_dirichlet(ny)));
+        let mut velx = Field2::new(&Space2::new(&fourier_r2c(nx), &cheb_dirichlet(ny)));
+        let mut vely = Field2::new(&Space2::new(&fourier_r2c(nx), &cheb_dirichlet(ny)));
         // temperature
         let (mut temp, tempbc, presbc) = match bc {
             "rbc" => {
@@ -374,17 +374,17 @@ impl Navier2D<Complex<f64>, Space2R2c>
         let pseu = Field2::new(&Space2::new(&fourier_r2c(nx), &cheb_neumann(ny)));
         let field = Field2::new(&Space2::new(&fourier_r2c(nx), &chebyshev(ny)));
         // Scale fields
-        ux.scale(scale);
-        uy.scale(scale);
+        velx.scale(scale);
+        vely.scale(scale);
         temp.scale(scale);
         pres.scale(scale);
         // define solver
-        let solver_ux = HholtzAdi::new(
-            &ux,
+        let solver_velx = HholtzAdi::new(
+            &velx,
             [dt * nu / scale[0].powi(2), dt * nu / scale[1].powi(2)],
         );
-        let solver_uy = HholtzAdi::new(
-            &uy,
+        let solver_vely = HholtzAdi::new(
+            &vely,
             [dt * nu / scale[0].powi(2), dt * nu / scale[1].powi(2)],
         );
         let solver_temp = HholtzAdi::new(
@@ -392,7 +392,7 @@ impl Navier2D<Complex<f64>, Space2R2c>
             [dt * ka / scale[0].powi(2), dt * ka / scale[1].powi(2)],
         );
         let solver_pres = Poisson::new(&pseu, [1. / scale[0].powi(2), 1. / scale[1].powi(2)]);
-        let solver_hholtz = [solver_ux, solver_uy, solver_temp];
+        let solver_hholtz = [solver_velx, solver_vely, solver_temp];
         let rhs = Array2::zeros(field.vhat.raw_dim());
 
         // Diagnostics
@@ -402,8 +402,8 @@ impl Navier2D<Complex<f64>, Space2R2c>
         let mut navier = Navier2D::<Complex<f64>, Space2R2c> {
             field,
             temp,
-            ux,
-            uy,
+            velx,
+            vely,
             pres,
             pseu,
             rhs,
@@ -442,14 +442,14 @@ macro_rules! impl_integrate_for_navier {
                 }
 
                 // Convection Veclocity
-                self.ux.backward();
-                self.uy.backward();
-                let ux = self.ux.v.to_owned();
-                let uy = self.uy.v.to_owned();
+                self.velx.backward();
+                self.vely.backward();
+                let velx = self.velx.v.to_owned();
+                let vely = self.vely.v.to_owned();
 
                 // Solve Velocity
-                self.solve_ux(&ux, &uy);
-                self.solve_uy(&ux, &uy, &that);
+                self.solve_velx(&velx, &vely);
+                self.solve_vely(&velx, &vely, &that);
 
                 // Projection
                 let div = self.div();
@@ -458,7 +458,7 @@ macro_rules! impl_integrate_for_navier {
                 self.update_pres(&div);
 
                 // Solve Temperature
-                self.solve_temp(&ux, &uy);
+                self.solve_temp(&velx, &vely);
 
                 // update time
                 self.time += self.dt;

@@ -17,8 +17,8 @@ where
     /// Divergence: duxdx + duydy
     pub fn div(&mut self) -> Array2<T> {
         self.zero_rhs();
-        self.rhs = &self.rhs + &self.ux.gradient([1, 0], Some(self.scale));
-        self.rhs = &self.rhs + &self.uy.gradient([0, 1], Some(self.scale));
+        self.rhs = &self.rhs + &self.velx.gradient([1, 0], Some(self.scale));
+        self.rhs = &self.rhs + &self.vely.gradient([0, 1], Some(self.scale));
         self.rhs.to_owned()
     }
 }
@@ -56,15 +56,15 @@ where
     T: Scalar,
 {
     /// Convection term for temperature
-    pub(crate) fn conv_temp(&mut self, ux: &Array2<f64>, uy: &Array2<f64>) -> Array2<T> {
+    pub(crate) fn conv_temp(&mut self, velx: &Array2<f64>, vely: &Array2<f64>) -> Array2<T> {
         let scale = Some(self.scale);
-        // + ux * dTdx + uy * dTdy
-        let mut conv = conv_term(ux, &self.temp, &mut self.field.space, [1, 0], scale);
-        conv += &conv_term(uy, &self.temp, &mut self.field.space, [0, 1], scale);
+        // + velx * dTdx + vely * dTdy
+        let mut conv = conv_term(velx, &self.temp, &mut self.field.space, [1, 0], scale);
+        conv += &conv_term(vely, &self.temp, &mut self.field.space, [0, 1], scale);
         // + bc contribution
         if let Some(field) = &self.tempbc {
-            conv += &conv_term(ux, field, &mut self.field.space, [1, 0], scale);
-            conv += &conv_term(uy, field, &mut self.field.space, [0, 1], scale);
+            conv += &conv_term(velx, field, &mut self.field.space, [1, 0], scale);
+            conv += &conv_term(vely, field, &mut self.field.space, [0, 1], scale);
         }
         // -> spectral space
         self.field.v.assign(&conv);
@@ -73,12 +73,12 @@ where
         self.field.vhat.to_owned()
     }
 
-    /// Convection term for ux
-    pub(crate) fn conv_ux(&mut self, ux: &Array2<f64>, uy: &Array2<f64>) -> Array2<T> {
+    /// Convection term for velx
+    pub(crate) fn conv_velx(&mut self, velx: &Array2<f64>, vely: &Array2<f64>) -> Array2<T> {
         let scale = Some(self.scale);
-        // + ux * dudx + uy * dudy
-        let mut conv = conv_term(ux, &self.ux, &mut self.field.space, [1, 0], scale);
-        conv += &conv_term(uy, &self.ux, &mut self.field.space, [0, 1], scale);
+        // + velx * dudx + vely * dudy
+        let mut conv = conv_term(velx, &self.velx, &mut self.field.space, [1, 0], scale);
+        conv += &conv_term(vely, &self.velx, &mut self.field.space, [0, 1], scale);
         // -> spectral space
         self.field.v.assign(&conv);
         self.field.forward();
@@ -86,12 +86,12 @@ where
         self.field.vhat.to_owned()
     }
 
-    /// Convection term for uy
-    pub(crate) fn conv_uy(&mut self, ux: &Array2<f64>, uy: &Array2<f64>) -> Array2<T> {
+    /// Convection term for vely
+    pub(crate) fn conv_vely(&mut self, velx: &Array2<f64>, vely: &Array2<f64>) -> Array2<T> {
         let scale = Some(self.scale);
-        // + ux * dudx + uy * dudy
-        let mut conv = conv_term(ux, &self.uy, &mut self.field.space, [1, 0], scale);
-        conv += &conv_term(uy, &self.uy, &mut self.field.space, [0, 1], scale);
+        // + velx * dudx + vely * dudy
+        let mut conv = conv_term(velx, &self.vely, &mut self.field.space, [1, 0], scale);
+        conv += &conv_term(vely, &self.vely, &mut self.field.space, [0, 1], scale);
         // -> spectral space
         self.field.v.assign(&conv);
         self.field.forward();
@@ -108,9 +108,9 @@ where
 {
     /// Correct velocity field.
     /// $$
-    /// uxnew = ux - c*dpdx
+    /// velxnew = velx - c*dpdx
     /// $$
-    /// uynew = uy - c*dpdy
+    /// velynew = vely - c*dpdy
     /// $$
     #[allow(clippy::similar_names)]
     pub(crate) fn correct_velocity(&mut self, c: f64) {
@@ -119,8 +119,8 @@ where
         let mut dp_dy = self.pseu.gradient([0, 1], Some(self.scale));
         dp_dx *= c_t;
         dp_dy *= c_t;
-        self.ux.vhat = &self.ux.vhat + &self.ux.space.from_ortho(&dp_dx);
-        self.uy.vhat = &self.uy.vhat + &self.uy.space.from_ortho(&dp_dy);
+        self.velx.vhat = &self.velx.vhat + &self.velx.space.from_ortho(&dp_dx);
+        self.vely.vhat = &self.vely.vhat + &self.vely.space.from_ortho(&dp_dy);
     }
 }
 
@@ -172,40 +172,40 @@ where
     /// $$
     /// (1 - \delta t  \mathcal{D}) u\\_new = -dt*C(u) - \delta t grad(p) + \delta t f + u
     /// $$
-    pub(crate) fn solve_ux(&mut self, ux: &Array2<f64>, uy: &Array2<f64>) {
+    pub(crate) fn solve_velx(&mut self, velx: &Array2<f64>, vely: &Array2<f64>) {
         self.zero_rhs();
         // + old field
-        self.rhs += &self.ux.to_ortho();
+        self.rhs += &self.velx.to_ortho();
         // + pres
         self.rhs -= &(self.pres.gradient([1, 0], Some(self.scale)) * self.dt);
         // + convection
-        let conv = self.conv_ux(ux, uy) * self.dt;
+        let conv = self.conv_velx(velx, vely) * self.dt;
         self.rhs -= &conv;
         // solve lhs
-        self.solver_hholtz[0].solve_par(&self.rhs, &mut self.ux.vhat, 0);
+        self.solver_hholtz[0].solve_par(&self.rhs, &mut self.velx.vhat, 0);
     }
 
     /// Solve vertical momentum equation
-    pub(crate) fn solve_uy(&mut self, ux: &Array2<f64>, uy: &Array2<f64>, buoy: &Array2<T>) {
+    pub(crate) fn solve_vely(&mut self, velx: &Array2<f64>, vely: &Array2<f64>, buoy: &Array2<T>) {
         self.zero_rhs();
         // + old field
-        self.rhs += &self.uy.to_ortho();
+        self.rhs += &self.vely.to_ortho();
         // + pres
         self.rhs -= &(self.pres.gradient([0, 1], Some(self.scale)) * self.dt);
         // + buoyancy
         self.rhs += &(buoy * self.dt);
         // + convection
-        let conv = self.conv_uy(ux, uy) * self.dt;
+        let conv = self.conv_vely(velx, vely) * self.dt;
         self.rhs -= &conv;
         // solve lhs
-        self.solver_hholtz[1].solve_par(&self.rhs, &mut self.uy.vhat, 0);
+        self.solver_hholtz[1].solve_par(&self.rhs, &mut self.vely.vhat, 0);
     }
 
     /// Solve temperature equation:
     /// $$
     /// (1 - dt*D) temp\\_new = -dt*C(temp) + dt*fbc + temp
     /// $$
-    pub(crate) fn solve_temp(&mut self, ux: &Array2<f64>, uy: &Array2<f64>) {
+    pub(crate) fn solve_temp(&mut self, velx: &Array2<f64>, vely: &Array2<f64>) {
         self.zero_rhs();
         // + old field
         self.rhs += &self.temp.to_ortho();
@@ -216,7 +216,7 @@ where
             self.rhs += &(field.gradient([0, 2], Some(self.scale)) * self.dt * *ka);
         }
         // + convection
-        let conv = self.conv_temp(ux, uy) * self.dt;
+        let conv = self.conv_temp(velx, vely) * self.dt;
         self.rhs -= &conv;
         // solve lhs
         self.solver_hholtz[2].solve_par(&self.rhs, &mut self.temp.vhat, 0);

@@ -168,11 +168,11 @@ where
 
 /// Returns volumetric Nusselt number
 /// $$
-/// Nuvol = \langle uy*T/kappa - dTdz \rangle\\_V
+/// Nuvol = \langle vely*T/kappa - dTdz \rangle\\_V
 /// $$
 pub fn eval_nuvol<A, T2, S>(
     temp: &mut FieldBase<A, A, T2, S, 2>,
-    uy: &mut FieldBase<A, A, T2, S, 2>,
+    vely: &mut FieldBase<A, A, T2, S, 2>,
     field: &mut FieldBase<A, A, T2, S, 2>,
     tempbc: &Option<FieldBase<A, A, T2, S, 2>>,
     kappa: A,
@@ -191,16 +191,16 @@ where
         field.vhat = &field.vhat + &x.to_ortho();
     }
     field.backward();
-    // uy
-    uy.backward();
-    let uy_temp = &field.v * &uy.v;
+    // vely
+    vely.backward();
+    let vely_temp = &field.v * &vely.v;
     // dtdz
     let dtdz = field.gradient([0, 1], None) / (scale[1] * -A::one());
     field.vhat.assign(&dtdz);
     field.backward();
     let dtdz = &field.v;
     // Nuvol
-    field.v = (dtdz + uy_temp / kappa) * two * scale[1];
+    field.v = (dtdz + vely_temp / kappa) * two * scale[1];
     //average
     field.average()
 }
@@ -208,11 +208,11 @@ where
 /// Returns Reynolds number base on kinetic energy
 /// $$
 /// Re = U*L / nu
-/// U = \sqrt{(ux^2 + uy^2)}
+/// U = \sqrt{(velx^2 + vely^2)}
 /// $$
 pub fn eval_re<A, T2, S>(
-    ux: &mut FieldBase<A, A, T2, S, 2>,
-    uy: &mut FieldBase<A, A, T2, S, 2>,
+    velx: &mut FieldBase<A, A, T2, S, 2>,
+    vely: &mut FieldBase<A, A, T2, S, 2>,
     field: &mut FieldBase<A, A, T2, S, 2>,
     nu: A,
     scale: &[A; 2],
@@ -222,9 +222,9 @@ where
     Complex<A>: ScalarOperand,
     S: BaseSpace<A, 2, Physical = A, Spectral = T2>,
 {
-    ux.backward();
-    uy.backward();
-    let ekin = &ux.v.mapv(|x| x.powi(2)) + &uy.v.mapv(|x| x.powi(2));
+    velx.backward();
+    vely.backward();
+    let ekin = &velx.v.mapv(|x| x.powi(2)) + &vely.v.mapv(|x| x.powi(2));
     field.v.assign(&ekin.mapv(A::sqrt));
     let two = A::one() + A::one();
     field.v *= two * scale[1] / nu;

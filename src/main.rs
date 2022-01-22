@@ -14,24 +14,26 @@ fn main() {
     use num_complex::Complex;
     use num_traits::identities::Zero;
     use rustpde::integrate;
+    use rustpde::navier_stokes::Navier2D;
     use rustpde::navier_stokes_lnse::functions::l2_norm;
     use rustpde::navier_stokes_lnse::lnse_adj_grad::opt_routine;
     use rustpde::navier_stokes_lnse::Navier2DLnse;
+    use rustpde::Integrate;
 
     // Opt parameter
     let mut alpha = 1.0;
     let (beta1, beta2) = (0.5, 0.5);
-    let energy_constraint = 1e-4;
-    let max_time = 20.;
-    let max_iter = 10;
+    let energy_constraint = 1e1;
+    let max_time = 1.;
+    let max_iter = 16;
 
     // Navier parameter
     let (nx, ny) = (128, 57);
     let ra = 1e5;
-    let pr = 0.1;
-    let aspect = 2.;
-    let dt = 0.01;
-    let mut navier = Navier2DLnse::new_periodic(nx, ny, ra, pr, dt, aspect, "rbc");
+    let pr = 1.;
+    let aspect = 1.;
+    let dt = 0.05;
+    let mut navier = Navier2DLnse::new_confined(nx, ny, ra, pr, dt, aspect, "rbc");
     navier.init_random(1e-3);
     navier.write_unwrap("base.h5");
 
@@ -60,8 +62,10 @@ fn main() {
         navier.time = 0.;
         navier.pres.v *= 0.;
         navier.pseu.v *= 0.;
-        navier.pres.vhat *= Complex::<f64>::zero();
-        navier.pseu.vhat *= Complex::<f64>::zero();
+        // navier.pres.vhat *= Complex::<f64>::zero();
+        // navier.pseu.vhat *= Complex::<f64>::zero();
+        navier.pres.vhat *= 0.;
+        navier.pseu.vhat *= 0.;
 
         // initial fields
         let u0 = navier.velx.v.to_owned();
@@ -72,7 +76,7 @@ fn main() {
 
         // integrate_adjoint(&mut navier, 5., Some(1.0));
         let (j, (mut grad_velx, mut grad_vely, mut grad_temp)) =
-            navier.grad_adjoint(max_time, Some(max_time));
+            navier.grad_adjoint(max_time, Some(max_time), beta1, beta2);
 
         if j < j_old {
             alpha /= 2.;
@@ -109,30 +113,57 @@ fn main() {
         .expect("Unable to write opt_field.h5");
 
     // Finally evolve field
-    println!("Evolve field ...");
-    navier.read_unwrap("data/opt_field.h5");
-    navier.reset_time();
-    integrate(&mut navier, 20., Some(1.0));
+    // println!("Evolve field ...");
+    // navier.read_unwrap("data/opt_field.h5");
+    // navier.reset_time();
+    // integrate(&mut navier, 20., Some(1.0));
+
+    // Non linear simulation
+    let mut navier_nl = Navier2D::new_confined(nx, ny, ra, pr, dt, aspect, "rbc");
+    navier_nl
+        .velx
+        .v
+        .assign(&(&navier.velx.v + &navier.mean.velx.v));
+    navier_nl
+        .vely
+        .v
+        .assign(&(&navier.vely.v + &navier.mean.vely.v));
+    if let Some(field) = &navier_nl.tempbc {
+        navier_nl
+            .temp
+            .v
+            .assign(&(&navier.temp.v + &navier.mean.temp.v - &field.v));
+    } else {
+        navier_nl
+            .temp
+            .v
+            .assign(&(&navier.temp.v + &navier.mean.temp.v));
+    }
+    navier_nl.velx.forward();
+    navier_nl.vely.forward();
+    navier_nl.temp.forward();
+    navier_nl.callback();
+    integrate(&mut navier_nl, 30., Some(0.5));
 }
 
-fn main2() {
+fn main3() {
     use rustpde::integrate;
     use rustpde::navier_stokes::Navier2D;
     // Parameters
     let (nx, ny) = (128, 57);
-    let ra = 1e4;
+    let ra = 1e5;
     let pr = 1.;
-    let aspect = 2.0;
-    let dt = 0.1;
-    let mut navier = Navier2D::new_periodic(nx, ny, ra, pr, dt, aspect, "rbc");
+    let aspect = 1.0;
+    let dt = 0.05;
+    let mut navier = Navier2D::new_confined(nx, ny, ra, pr, dt, aspect, "rbc");
     // if navier.nrank() == 0 {
     //     navier.write("restart.h5");
     // }
     //navier.read_unwrap("restart.h5");
 
     // Set initial conditions
-    //navier.random_disturbance(1e-2);
-    navier.set_temperature(1e-1, 2., 1.);
-    navier.set_velocity(1e-1, 2., 1.);
-    integrate(&mut navier, 200., Some(1.0));
+    navier.random_disturbance(1e-2);
+    // navier.set_temperature(1e-1, 2., 1.);
+    // navier.set_velocity(1e-1, 2., 1.);
+    integrate(&mut navier, 300., Some(1.0));
 }

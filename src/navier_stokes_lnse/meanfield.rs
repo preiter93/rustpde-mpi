@@ -13,6 +13,7 @@ type Space2R2c = Space2<BaseR2c<f64>, BaseR2r<f64>>;
 type Space2R2r = Space2<BaseR2r<f64>, BaseR2r<f64>>;
 
 /// `MeanFields` used for the linearized Navier-Stokes solver
+#[derive(Clone)]
 pub struct MeanFields<T, S> {
     /// Horizontal velocity field
     pub velx: Field2<T, S>,
@@ -43,8 +44,55 @@ impl MeanFields<f64, Space2R2r> {
         Self { velx, vely, temp }
     }
 
+    /// Return field for Horizontal convection
+    /// type temperature boundary conditions:
+    ///
+    /// T = sin(2*pi/L * x) at the bottom
+    /// and T = T' = 0 at the top
+    pub fn new_hc_confined(nx: usize, ny: usize) -> MeanFields<f64, Space2R2r> {
+        /// Return y = a(x-xs)**2 + ys, where xs and
+        /// ys (=0) are the coordinates of the parabola.
+        ///
+        /// The vertex with ys=0 and dydx=0 is at the
+        /// right boundary and *a* is calculated
+        /// from the value at the left boundary,
+        fn _parabola(x: &ndarray::Array1<f64>, f_xl: f64) -> ndarray::Array1<f64> {
+            let x_l = x[0];
+            let x_r = x[x.len() - 1];
+            let a = f_xl / (x_l - x_r).powi(2);
+            x.mapv(|x| a * (x - x_r).powi(2))
+        }
+
+        let velx = Field2::new(&Space2::new(&chebyshev(nx), &chebyshev(ny)));
+        let vely = Field2::new(&Space2::new(&chebyshev(nx), &chebyshev(ny)));
+        let mut temp = Field2::new(&Space2::new(&chebyshev(nx), &chebyshev(ny)));
+
+        // Set field
+        let x = &temp.x[0];
+        let y = &temp.x[1];
+        let x0 = x[0];
+        let length = x[x.len() - 1] - x[0];
+        for (mut axis, xi) in temp.v.axis_iter_mut(Axis(0)).zip(x.iter()) {
+            let f_x = -0.5 * (2. * std::f64::consts::PI * (xi - x0) / length).cos();
+            let parabola = _parabola(y, f_x);
+            axis.assign(&parabola);
+        }
+
+        // Transform
+        temp.forward();
+        temp.backward();
+
+        // Return
+        Self { velx, vely, temp }
+    }
+
     /// Read meanfield from file
-    pub fn read_from_confined(nx: usize, ny: usize, filename: &str) -> MeanFields<f64, Space2R2r> {
+    pub fn read_from_confined(
+        nx: usize,
+        ny: usize,
+        filename: &str,
+        bc: Option<&str>,
+    ) -> MeanFields<f64, Space2R2r> {
         use std::path::Path;
         let is_file = Path::new(filename).is_file();
         if is_file {
@@ -56,8 +104,19 @@ impl MeanFields<f64, Space2R2r> {
             meanfield.read_unwrap(filename);
             meanfield
         } else {
-            println!("File {:?} does not exist. Use RBC meanfield.", filename);
-            Self::new_rbc_confined(nx, ny)
+            println!(
+                "File {:?} does not exist. Use {:?} meanfield.",
+                filename, bc
+            );
+            if let Some(bc) = bc {
+                match bc {
+                    "rbc" => Self::new_rbc_confined(nx, ny),
+                    "hc" => Self::new_hc_confined(nx, ny),
+                    _ => panic!("Boundary condition type {:?} not recognized!", bc),
+                }
+            } else {
+                Self::new_rbc_confined(nx, ny)
+            }
         }
     }
 }

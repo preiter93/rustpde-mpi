@@ -18,8 +18,8 @@ where
     /// # Errors
     /// Failed to read
     pub fn read(&mut self, filename: &str) -> Result<()> {
-        self.ux.read(&filename, "ux")?;
-        self.uy.read(&filename, "uy")?;
+        self.velx.read(&filename, "ux")?;
+        self.vely.read(&filename, "uy")?;
         self.temp.read(&filename, "temp")?;
         self.pres.read(&filename, "pres")?;
         self.time = read_scalar_from_hdf5::<f64>(&filename, "time")?;
@@ -41,12 +41,12 @@ where
     /// # Errors
     /// Failed to write
     pub fn write(&mut self, filename: &str) -> Result<()> {
-        self.ux.backward();
-        self.uy.backward();
+        self.velx.backward();
+        self.vely.backward();
         self.temp.backward();
         self.pres.backward();
-        self.ux.write(&filename, "ux")?;
-        self.uy.write(&filename, "uy")?;
+        self.velx.write(&filename, "ux")?;
+        self.vely.write(&filename, "uy")?;
         self.temp.write(&filename, "temp")?;
         self.pres.write(&filename, "pres")?;
         if let Some(field) = &self.tempbc {
@@ -102,8 +102,8 @@ where
             if (self.time + self.dt / 2.) % statistics.save_stat < self.dt {
                 statistics.update(
                     &self.temp.to_ortho(),
-                    &self.ux.to_ortho(),
-                    &self.uy.to_ortho(),
+                    &self.velx.to_ortho(),
+                    &self.vely.to_ortho(),
                     self.time,
                 );
             }

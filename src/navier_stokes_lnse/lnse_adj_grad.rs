@@ -1,6 +1,6 @@
 //! Calculate adjoint based sensitivity (gradient of
 //! final energy with respect to initial field)
-use super::functions::energy;
+use super::functions::{energy, l2_norm};
 use super::Navier2DLnse;
 use crate::field::BaseSpace;
 use crate::field::Field2;
@@ -10,6 +10,9 @@ use crate::solver::{hholtz_adi::HholtzAdi, poisson::Poisson, Solve};
 use crate::types::Scalar;
 use ndarray::{Ix2, ScalarOperand};
 use std::ops::Mul;
+
+/// Optimize (u + umean)**2 instead of u**2
+pub const WITH_MEAN: bool = false;
 
 impl<T, S> Navier2DLnse<T, S>
 where
@@ -64,7 +67,7 @@ where
     }
 
     /// Update adjoint loop
-    pub fn update_adjoint(&mut self) {
+    pub fn update_adjoint(&mut self, add_mean_contribution: bool) {
         // Buoyancy
         let uyhat = self.vely.to_ortho();
 
@@ -77,8 +80,8 @@ where
         let temp = self.temp.v.to_owned();
 
         // Solve Velocity
-        self.solve_velx_adj(&velx, &vely, &temp);
-        self.solve_vely_adj(&velx, &vely, &temp);
+        self.solve_velx_adj(&velx, &vely, &temp, add_mean_contribution);
+        self.solve_vely_adj(&velx, &vely, &temp, add_mean_contribution);
 
         // Projection
         let div = self.div();
@@ -87,7 +90,7 @@ where
         self.update_pres(&div);
 
         // Solve Temperature
-        self.solve_temp_adj(&velx, &vely, &temp, &uyhat);
+        self.solve_temp_adj(&velx, &vely, &temp, &uyhat, add_mean_contribution);
 
         // update time
         self.time += self.dt;
@@ -102,16 +105,17 @@ where
         &mut self,
         max_time: f64,
         save_intervall: Option<f64>,
+        beta1: f64,
+        beta2: f64,
     ) -> (f64, (Field2<T, S>, Field2<T, S>, Field2<T, S>)) {
         let mut timestep: usize = 0;
         let max_timestep = 10_000_000;
 
         // Weights of norm (vel, temp)
-        let (b1, b2) = (0.5, 0.5);
         loop {
+            // +1 timestep
             self.update_direct();
             timestep += 1;
-
             // Save
             if let Some(dt_save) = &save_intervall {
                 if (self.get_time() % dt_save) < self.get_dt() / 2.
@@ -121,7 +125,6 @@ where
                     self.callback_from_filename(&fname, "data/info.txt", true);
                 }
             }
-
             // Break
             if self.exit(self.time, max_time, timestep, max_timestep) {
                 break;
@@ -129,24 +132,36 @@ where
         }
 
         // Energy
-        let en = energy(&mut self.velx, &mut self.vely, &mut self.temp, b1, b2);
+        let en = if WITH_MEAN {
+            self.velx.backward();
+            self.vely.backward();
+            self.temp.backward();
+            let velx = &(&self.velx.v + &self.mean.velx.v);
+            let vely = &(&self.vely.v + &self.mean.vely.v);
+            let temp = &(&self.temp.v + &self.mean.temp.v);
+            l2_norm(&velx, &velx, &vely, &vely, &temp, &temp, beta1, beta2)
+        } else {
+            energy(&mut self.velx, &mut self.vely, &mut self.temp, beta1, beta2)
+        };
 
         // Function value to be returned
         let fun_val = en;
 
         // Initial conditions of adjoint fields
-        let b1_c64: T = b1.into();
-        let b2_c64: T = b2.into();
+        let b1_c64: T = beta1.into();
+        let b2_c64: T = beta2.into();
         self.velx.vhat *= b1_c64;
         self.vely.vhat *= b1_c64;
         self.temp.vhat *= b2_c64;
 
         // Adjoint loop
         self.reset_time();
+        let mut add_mean_contribution = WITH_MEAN;
         loop {
-            self.update_adjoint();
+            // +1 timestep
+            self.update_adjoint(add_mean_contribution);
+            add_mean_contribution = false;
             timestep += 1;
-
             // Save
             if let Some(dt_save) = &save_intervall {
                 if (self.time + self.dt / 2.) % dt_save < self.dt {
@@ -154,7 +169,6 @@ where
                     self.callback_from_filename(&fname, "data/info_adjoint.txt", false);
                 }
             }
-
             // Break
             if self.exit(self.time, max_time, timestep, max_timestep) {
                 break;
@@ -226,7 +240,6 @@ pub fn opt_routine(
     beta2: f64,
     alpha: f64,
 ) {
-    use super::functions::l2_norm;
     if alpha > 2. * std::f64::consts::PI {
         panic!("alpha must be less than 2 pi")
     }

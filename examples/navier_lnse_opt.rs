@@ -20,7 +20,7 @@ fn main() {
     // Navier parameter
     let (nx, ny) = (64, 57);
     let ra = 3e3;
-    let pr = 0.1;
+    let pr = 1.;
     let aspect = 1.;
     let dt = 0.01;
     let mut navier = Navier2DLnse::new_periodic(nx, ny, ra, pr, dt, aspect, "hc");

@@ -49,9 +49,13 @@ for i, f in enumerate(fname[i0:i9:step]):
         v = np.array(f["uy/v"])
         x = np.array(f["temp/x"])
         y = np.array(f["temp/y"])
+        try:
+            tbc = np.array(f["tempbc/v"])
+        except:
+            tbc = np.zeros(t.shape)
 
     print("Plot {:}".format(filename))
     # fig, ax = plot_contour(x, y, t, return_fig=True)
-    fig, ax = plot_streamplot(x, y, t, u, v, return_fig=True)
+    fig, ax = plot_streamplot(x, y, t + tbc, u, v, return_fig=True)
     fig.savefig(figname, dpi=200, bbox_inches="tight")
     plt.close("all")
