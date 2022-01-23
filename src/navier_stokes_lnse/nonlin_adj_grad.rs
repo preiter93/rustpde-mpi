@@ -1,25 +1,25 @@
 //! Calculate adjoint based sensitivity (gradient of
 //! final energy with respect to initial field)
-use super::functions::{l2_norm};
+use super::functions::l2_norm;
 use super::meanfield::MeanFields;
-use super::Navier2DLnse;
+use super::Navier2DNonLin;
 use crate::field::BaseSpace;
 use crate::field::Field2;
 use crate::io::traits::ReadWrite;
-use crate::navier_stokes_lnse::lnse_eq::DivNorm;
+use crate::navier_stokes_lnse::nonlin_eq::DivNorm;
 use crate::solver::{hholtz_adi::HholtzAdi, poisson::Poisson, Solve};
 use crate::types::Scalar;
 use ndarray::{Ix2, ScalarOperand};
-use std::ops::Mul;
+use std::ops::{Div, Mul};
 
 /// Solve maximization problem instead of minimization
 pub const MAXIMIZE: bool = false;
 
-impl<T, S> Navier2DLnse<T, S>
+impl<T, S> Navier2DNonLin<T, S>
 where
-    T: Scalar + Mul<f64, Output = T> + From<f64> + ScalarOperand,
+    T: Scalar + Mul<f64, Output = T> + From<f64> + ScalarOperand + Div<f64, Output = T>,
     S: BaseSpace<f64, 2, Physical = f64, Spectral = T>,
-    Navier2DLnse<T, S>: DivNorm,
+    Navier2DNonLin<T, S>: DivNorm,
     Poisson<f64, 2>: Solve<T, Ix2>,
     HholtzAdi<f64, 2>: Solve<T, Ix2>,
     Field2<T, S>: ReadWrite<T>,
@@ -42,7 +42,7 @@ where
     /// Update forward loop
     pub fn update_direct(&mut self) {
         // Buoyancy
-        let that = self.temp.to_ortho();
+        let that = self.temp.to_ortho() + self.mean.temp.to_ortho();
 
         // Convection Veclocity
         self.velx.backward();
@@ -63,12 +63,27 @@ where
         // Solve Temperature
         self.solve_temp(&ux, &uy);
 
+        // Store fields for adjoint loop
+        self.velx.backward();
+        self.vely.backward();
+        self.temp.backward();
+        let fields = MeanFields {
+            velx: self.velx.clone(),
+            vely: self.vely.clone(),
+            temp: self.temp.clone(),
+        };
+        self.field_history.push(fields);
+
         // update time
         self.time += self.dt;
     }
 
     /// Update adjoint loop
-    pub fn update_adjoint(&mut self) {
+    pub fn update_adjoint(&mut self, field_from_fwd: &MeanFields<T, S>) {
+        // Fields from forward loop, that act advective
+        let velx_nl = &field_from_fwd.velx;
+        let vely_nl = &field_from_fwd.vely;
+        let temp_nl = &field_from_fwd.temp;
         // Buoyancy
         let uyhat = self.vely.to_ortho();
 
@@ -81,8 +96,8 @@ where
         let temp = self.temp.v.to_owned();
 
         // Solve Velocity
-        self.solve_velx_adj(&velx, &vely, &temp);
-        self.solve_vely_adj(&velx, &vely, &temp);
+        self.solve_velx_adj(&velx, &vely, &temp, velx_nl, vely_nl, temp_nl);
+        self.solve_vely_adj(&velx, &vely, &temp, velx_nl, vely_nl, temp_nl);
 
         // Projection
         let div = self.div();
@@ -91,7 +106,7 @@ where
         self.update_pres(&div);
 
         // Solve Temperature
-        self.solve_temp_adj(&velx, &vely, &temp, &uyhat);
+        self.solve_temp_adj(&velx, &vely, &temp, &uyhat, velx_nl, vely_nl, temp_nl);
 
         // update time
         self.time += self.dt;
@@ -124,7 +139,7 @@ where
                     || (self.get_time() % dt_save) > dt_save - self.get_dt() / 2.
                 {
                     let fname = format!("data/flow{:0>8.2}.h5", self.time);
-                    self.callback_from_filename(&fname, "data/info.txt", true, None);
+                    self.callback_from_filename(&fname, "data/info.txt", false, None);
                 }
             }
             // Break
@@ -133,7 +148,7 @@ where
             }
         }
 
-        // Energy
+        // Evaluate function value
         self.velx.backward();
         self.vely.backward();
         self.temp.backward();
@@ -170,8 +185,11 @@ where
         // Adjoint loop
         self.reset_time();
         loop {
+            let num_fields = self.field_history.len();
+            let field_from_fwd = self.field_history.remove(num_fields - 1);
+
             // +1 timestep
-            self.update_adjoint();
+            self.update_adjoint(&field_from_fwd);
             timestep += 1;
             // Save
             if let Some(dt_save) = &save_intervall {

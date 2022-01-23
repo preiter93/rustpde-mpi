@@ -1,4 +1,5 @@
 //! Some useful post-processing functions
+#![allow(clippy::similar_names)]
 use crate::field::{BaseSpace, Field2, FieldBase};
 use crate::types::FloatNum;
 use crate::types::Scalar;

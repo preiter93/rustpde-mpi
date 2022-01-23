@@ -87,6 +87,8 @@ impl MeanFields<f64, Space2R2r> {
     }
 
     /// Read meanfield from file
+    /// # Panics
+    /// 'bc' type not recognized
     pub fn read_from_confined(
         nx: usize,
         ny: usize,
@@ -123,6 +125,8 @@ impl MeanFields<f64, Space2R2r> {
 
 impl MeanFields<Complex<f64>, Space2R2c> {
     /// Return `MeanFields` for periodic Rayleigh-Benard convection
+    /// # Panics
+    /// 'bc' type not recognized
     pub fn new_rbc_periodic(nx: usize, ny: usize) -> MeanFields<Complex<f64>, Space2R2c> {
         // Allocate
         let velx = Field2::new(&Space2::new(&fourier_r2c(nx), &chebyshev(ny)));

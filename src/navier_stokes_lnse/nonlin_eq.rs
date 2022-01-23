@@ -1,5 +1,5 @@
-//! Implement equations for `Navier2DLnse`
-use super::Navier2DLnse;
+//! Implement equations for `Navier2DNonLin`
+use super::Navier2DNonLin;
 use crate::field::BaseSpace;
 use crate::navier_stokes::functions::{conv_term, dealias, norm_l2_c64, norm_l2_f64};
 use crate::solver::{hholtz_adi::HholtzAdi, poisson::Poisson, Solve};
@@ -10,7 +10,7 @@ use num_complex::Complex;
 use std::ops::Mul;
 
 /// General
-impl<T, S> Navier2DLnse<T, S>
+impl<T, S> Navier2DNonLin<T, S>
 where
     T: Scalar,
     S: BaseSpace<f64, 2, Physical = f64, Spectral = T>,
@@ -30,7 +30,7 @@ pub trait DivNorm {
     fn div_norm(&mut self) -> f64;
 }
 
-impl<S> DivNorm for Navier2DLnse<f64, S>
+impl<S> DivNorm for Navier2DNonLin<f64, S>
 where
     S: BaseSpace<f64, 2, Physical = f64, Spectral = f64>,
 {
@@ -40,7 +40,7 @@ where
     }
 }
 
-impl<S> DivNorm for Navier2DLnse<Complex<f64>, S>
+impl<S> DivNorm for Navier2DNonLin<Complex<f64>, S>
 where
     S: BaseSpace<f64, 2, Physical = f64, Spectral = Complex<f64>>,
 {
@@ -50,7 +50,7 @@ where
     }
 }
 
-impl<T, S> Navier2DLnse<T, S>
+impl<T, S> Navier2DNonLin<T, S>
 where
     S: BaseSpace<f64, 2, Physical = f64, Spectral = T>,
     T: Scalar,
@@ -60,12 +60,19 @@ where
         let scale = Some(self.scale);
         let ux_mean = &self.mean.velx.v;
         let uy_mean = &self.mean.vely.v;
+        let space = &mut self.field.space;
         // + ux * dUdx + uy * dUdy
-        let mut conv = conv_term(velx, &self.mean.velx, &mut self.field.space, [1, 0], scale);
-        conv += &conv_term(vely, &self.mean.velx, &mut self.field.space, [0, 1], scale);
+        let mut conv = conv_term(velx, &self.mean.velx, space, [1, 0], scale);
+        conv += &conv_term(vely, &self.mean.velx, space, [0, 1], scale);
         // + Ux * dudx + Uy * dudy
-        conv += &conv_term(ux_mean, &self.velx, &mut self.field.space, [1, 0], scale);
-        conv += &conv_term(uy_mean, &self.velx, &mut self.field.space, [0, 1], scale);
+        conv += &conv_term(ux_mean, &self.velx, space, [1, 0], scale);
+        conv += &conv_term(uy_mean, &self.velx, space, [0, 1], scale);
+        // + ux * dudx + uy * dudy
+        conv += &conv_term(velx, &self.velx, space, [1, 0], scale);
+        conv += &conv_term(vely, &self.velx, space, [0, 1], scale);
+        // + Ux * dUdx + Uy * dUdy
+        conv += &conv_term(ux_mean, &self.mean.velx, space, [1, 0], scale);
+        conv += &conv_term(uy_mean, &self.mean.velx, space, [0, 1], scale);
         // -> spectral space
         self.field.v.assign(&conv);
         self.field.forward();
@@ -78,12 +85,19 @@ where
         let scale = Some(self.scale);
         let ux_mean = &self.mean.velx.v;
         let uy_mean = &self.mean.vely.v;
+        let space = &mut self.field.space;
         // + ux * dVdx + uy * dVdy
-        let mut conv = conv_term(velx, &self.mean.vely, &mut self.field.space, [1, 0], scale);
-        conv += &conv_term(vely, &self.mean.vely, &mut self.field.space, [0, 1], scale);
+        let mut conv = conv_term(velx, &self.mean.vely, space, [1, 0], scale);
+        conv += &conv_term(vely, &self.mean.vely, space, [0, 1], scale);
         // + Ux * dvdx + Uy * dvdy
-        conv += &conv_term(ux_mean, &self.vely, &mut self.field.space, [1, 0], scale);
-        conv += &conv_term(uy_mean, &self.vely, &mut self.field.space, [0, 1], scale);
+        conv += &conv_term(ux_mean, &self.vely, space, [1, 0], scale);
+        conv += &conv_term(uy_mean, &self.vely, space, [0, 1], scale);
+        // + ux * dvdx + uy * dvdy
+        conv += &conv_term(velx, &self.vely, space, [1, 0], scale);
+        conv += &conv_term(vely, &self.vely, space, [0, 1], scale);
+        // + Ux * dVdx + Uy * dVdy
+        conv += &conv_term(ux_mean, &self.mean.vely, space, [1, 0], scale);
+        conv += &conv_term(uy_mean, &self.mean.vely, space, [0, 1], scale);
         // -> spectral space
         self.field.v.assign(&conv);
         self.field.forward();
@@ -96,12 +110,19 @@ where
         let scale = Some(self.scale);
         let ux_mean = &self.mean.velx.v;
         let uy_mean = &self.mean.vely.v;
+        let space = &mut self.field.space;
         // + ux * dTdx + uy * dTdy
-        let mut conv = conv_term(velx, &self.mean.temp, &mut self.field.space, [1, 0], scale);
-        conv += &conv_term(vely, &self.mean.temp, &mut self.field.space, [0, 1], scale);
+        let mut conv = conv_term(velx, &self.mean.temp, space, [1, 0], scale);
+        conv += &conv_term(vely, &self.mean.temp, space, [0, 1], scale);
         // + Ux * dtdx + Uy * dtdy
-        conv += &conv_term(ux_mean, &self.temp, &mut self.field.space, [1, 0], scale);
-        conv += &conv_term(uy_mean, &self.temp, &mut self.field.space, [0, 1], scale);
+        conv += &conv_term(ux_mean, &self.temp, space, [1, 0], scale);
+        conv += &conv_term(uy_mean, &self.temp, space, [0, 1], scale);
+        // + ux * dtdx + uy * dtdy
+        conv += &conv_term(&velx, &self.temp, space, [1, 0], scale);
+        conv += &conv_term(&vely, &self.temp, space, [0, 1], scale);
+        // + Ux * dTdx + Uy * dTdy
+        conv += &conv_term(ux_mean, &self.mean.temp, space, [1, 0], scale);
+        conv += &conv_term(uy_mean, &self.mean.temp, space, [0, 1], scale);
         // -> spectral space
         self.field.v.assign(&conv);
         self.field.forward();
@@ -111,7 +132,7 @@ where
 }
 
 /// Pressure update
-impl<T, S> Navier2DLnse<T, S>
+impl<T, S> Navier2DNonLin<T, S>
 where
     S: BaseSpace<f64, 2, Physical = f64, Spectral = T>,
     T: Scalar + ScalarOperand + From<f64> + Mul<f64, Output = T>,
@@ -147,7 +168,7 @@ where
 }
 
 /// Solve pressure field
-impl<T, S> Navier2DLnse<T, S>
+impl<T, S> Navier2DNonLin<T, S>
 where
     S: BaseSpace<f64, 2, Physical = f64, Spectral = T>,
     T: Scalar,
@@ -166,7 +187,7 @@ where
 }
 
 /// Solve momentum and temperature equations
-impl<T, S> Navier2DLnse<T, S>
+impl<T, S> Navier2DNonLin<T, S>
 where
     S: BaseSpace<f64, 2, Physical = f64, Spectral = T>,
     T: Scalar + Mul<f64, Output = T>,
@@ -176,6 +197,8 @@ where
     /// $$
     /// (1 - \delta t  \mathcal{D}) u\\_new = -dt*C(u) - \delta t grad(p) + \delta t f + u
     /// $$
+    /// # Panics
+    /// If *nu* is not in params
     pub(crate) fn solve_velx(&mut self, ux: &Array2<f64>, uy: &Array2<f64>) {
         self.zero_rhs();
         // + old field
@@ -185,11 +208,17 @@ where
         // + convection
         let conv = self.conv_velx(ux, uy) * self.dt;
         self.rhs -= &conv;
+        // + diffusion base field
+        let nu = *self.params.get("nu").unwrap();
+        self.rhs += &(self.mean.velx.gradient([2, 0], Some(self.scale)) * self.dt * nu);
+        self.rhs += &(self.mean.velx.gradient([0, 2], Some(self.scale)) * self.dt * nu);
         // solve lhs
         self.solver_hholtz[0].solve_par(&self.rhs, &mut self.velx.vhat, 0);
     }
 
     /// Solve vertical momentum equation
+    /// # Panics
+    /// If *nu* is not in params
     pub(crate) fn solve_vely(&mut self, ux: &Array2<f64>, uy: &Array2<f64>, buoy: &Array2<T>) {
         self.zero_rhs();
         // + old field
@@ -201,6 +230,10 @@ where
         // + convection
         let conv = self.conv_vely(ux, uy) * self.dt;
         self.rhs -= &conv;
+        // + diffusion base field
+        let nu = *self.params.get("nu").unwrap();
+        self.rhs += &(self.mean.vely.gradient([2, 0], Some(self.scale)) * self.dt * nu);
+        self.rhs += &(self.mean.vely.gradient([0, 2], Some(self.scale)) * self.dt * nu);
         // solve lhs
         self.solver_hholtz[1].solve_par(&self.rhs, &mut self.vely.vhat, 0);
     }
@@ -209,6 +242,8 @@ where
     /// $$
     /// (1 - dt*D) temp\\_new = -dt*C(temp) + dt*fbc + temp
     /// $$
+    /// # Panics
+    /// If *ka* is not in params
     pub(crate) fn solve_temp(&mut self, ux: &Array2<f64>, uy: &Array2<f64>) {
         self.zero_rhs();
         // + old field
@@ -216,6 +251,10 @@ where
         // + convection
         let conv = self.conv_temp(ux, uy) * self.dt;
         self.rhs -= &conv;
+        // + diffusion base field
+        let ka = *self.params.get("ka").unwrap();
+        self.rhs += &(self.mean.temp.gradient([2, 0], Some(self.scale)) * self.dt * ka);
+        self.rhs += &(self.mean.temp.gradient([0, 2], Some(self.scale)) * self.dt * ka);
         // solve lhs
         self.solver_hholtz[2].solve_par(&self.rhs, &mut self.temp.vhat, 0);
     }

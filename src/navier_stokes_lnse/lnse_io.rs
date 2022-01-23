@@ -75,7 +75,13 @@ where
     ///
     /// # Panics
     /// If folder `data` or file `info_name` cannot be created
-    pub fn callback_from_filename(&mut self, flow_name: &str, info_name: &str, suppress_io: bool) {
+    pub fn callback_from_filename(
+        &mut self,
+        flow_name: &str,
+        info_name: &str,
+        suppress_io: bool,
+        write_flow_intervall: Option<f64>,
+    ) {
         use crate::navier_stokes::functions::norm_l2_f64;
         use std::io::Write;
 
@@ -83,7 +89,8 @@ where
         std::fs::create_dir_all("data").unwrap();
 
         // Write flow field
-        if (self.time + self.dt / 2.) % OUTPUT_INTERVALL < self.dt {
+        let out_intervall = write_flow_intervall.map_or(OUTPUT_INTERVALL, |x| x);
+        if (self.time + self.dt / 2.) % out_intervall < self.dt {
             self.write_unwrap(&flow_name);
         }
 

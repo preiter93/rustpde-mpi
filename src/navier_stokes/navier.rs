@@ -24,6 +24,7 @@
 //!     integrate(&mut navier, 100., Some(1.0));
 //! }
 //! ```
+#![allow(clippy::similar_names)]
 use super::boundary_conditions::{bc_hc, bc_hc_periodic, bc_rbc, bc_rbc_periodic};
 use super::boundary_conditions::{pres_bc_rbc, pres_bc_rbc_periodic};
 use super::functions::{apply_cos_sin, apply_sin_cos, random_field};
@@ -169,15 +170,15 @@ where
     }
 
     /// Initialize all fields with random disturbances
-    pub fn random_disturbance(&mut self, amp: f64) {
+    pub fn init_random(&mut self, amp: f64) {
         random_field(&mut self.temp, amp);
         random_field(&mut self.velx, amp);
         random_field(&mut self.vely, amp);
-        // Remove bc base from temp
-        if let Some(x) = &self.tempbc {
-            self.temp.v = &self.temp.v - &x.v;
-            self.temp.forward();
-        }
+        // // Remove bc base from temp
+        // if let Some(x) = &self.tempbc {
+        //     self.temp.v = &self.temp.v - &x.v;
+        //     self.temp.forward();
+        // }
     }
 
     /// Reset time
@@ -301,7 +302,7 @@ impl Navier2D<f64, Space2R2r>
             statistics: None,
         };
         // Initial condition
-        navier.random_disturbance(0.1);
+        navier.init_random(0.1);
         // Return
         navier
     }
@@ -421,7 +422,7 @@ impl Navier2D<Complex<f64>, Space2R2c>
             statistics: None,
         };
         // Initial condition
-        navier.random_disturbance(0.1);
+        navier.init_random(0.1);
         // Return
         navier
     }
@@ -475,7 +476,7 @@ macro_rules! impl_integrate_for_navier {
             fn callback(&mut self) {
                 let flowname = format!("data/flow{:0>8.2}.h5", self.time);
                 let io_name = "data/info.txt";
-                self.callback_from_filename(&flowname, io_name, false);
+                self.callback_from_filename(&flowname, io_name, false, self.write_intervall);
             }
 
             fn exit(&mut self) -> bool {

@@ -1,4 +1,5 @@
 //! Implement equations for navier-stokes simulations
+#![allow(clippy::similar_names)]
 use super::functions::{conv_term, dealias, norm_l2_c64, norm_l2_f64};
 use super::navier::Navier2D;
 use crate::field::BaseSpace;

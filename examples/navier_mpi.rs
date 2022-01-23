@@ -23,6 +23,6 @@ fn main() {
     // Set initial conditions
     // navier.set_velocity(0.2, 1., 1.);
     // navier.set_temperature(0.2, 1., 1.);
-    navier.random_disturbance(1e-2);
+    navier.init_random(1e-2);
     integrate(&mut navier, 1., Some(0.2));
 }

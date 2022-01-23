@@ -20,6 +20,7 @@
 //!        vorticity_from_file(&fname).unwrap();
 //! }
 //! ```
+#![allow(clippy::similar_names)]
 use crate::bases::BaseSpace;
 use crate::bases::{cheb_dirichlet, chebyshev, fourier_r2c, Space2};
 use crate::field::Field2;

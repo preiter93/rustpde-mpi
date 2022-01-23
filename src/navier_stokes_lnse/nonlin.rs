@@ -1,6 +1,5 @@
-//! Linearized Navier--Stokes equations
+//! Non-linear Navier-Stokes solver for adjoint optimizations
 use super::meanfield::MeanFields;
-// use crate::bases::{BaseR2c, BaseR2r};
 use crate::bases::{cheb_dirichlet, cheb_dirichlet_neumann, cheb_neumann, chebyshev, fourier_r2c};
 use crate::bases::{BaseR2c, BaseR2r, Space2};
 use crate::field::Field2;
@@ -21,7 +20,7 @@ pub(crate) type Space2R2r = Space2<BaseR2r<f64>, BaseR2r<f64>>;
 pub(crate) type Space2R2c = Space2<BaseR2c<f64>, BaseR2r<f64>>;
 
 /// Linearized Navier Stokes solver
-pub struct Navier2DLnse<T, S> {
+pub struct Navier2DNonLin<T, S> {
     /// Field for derivatives and transforms
     pub field: Field2<T, S>,
     /// Horizontal Velocity
@@ -50,11 +49,14 @@ pub struct Navier2DLnse<T, S> {
     pub params: HashMap<&'static str, f64>,
     /// Quantities
     pub quantities: HashMap<&'static str, f64>,
-    /// Mean Field
+    /// Mean Field (or base field)
     pub mean: MeanFields<T, S>,
+    /// History of old fields,
+    /// used in convection terms in the adjoint optimization
+    pub field_history: Vec<MeanFields<T, S>>,
 }
 
-impl<T, S> Navier2DLnse<T, S>
+impl<T, S> Navier2DNonLin<T, S>
 where
     T: num_traits::Zero,
 {
@@ -65,7 +67,7 @@ where
     }
 }
 
-impl<T, S> Navier2DLnse<T, S>
+impl<T, S> Navier2DNonLin<T, S>
 where
     T: num_traits::Zero,
     S: BaseSpace<f64, 2, Physical = f64, Spectral = T>,
@@ -79,7 +81,7 @@ where
     }
 }
 
-impl Navier2DLnse<f64, Space2R2r> {
+impl Navier2DNonLin<f64, Space2R2r> {
     /// Linearized Navier Stokes solver with sidewalls
     /// # Panics
     /// 'bc' type not recognized
@@ -91,7 +93,7 @@ impl Navier2DLnse<f64, Space2R2r> {
         dt: f64,
         aspect: f64,
         bc: &str,
-    ) -> Navier2DLnse<f64, Space2R2r> {
+    ) -> Navier2DNonLin<f64, Space2R2r> {
         // geometry scales
         let scale = [aspect, 1.];
         // diffusivities
@@ -129,6 +131,9 @@ impl Navier2DLnse<f64, Space2R2r> {
         let mut mean = MeanFields::read_from_confined(nx, ny, "mean.h5", Some(bc));
         mean.write_unwrap("mean_field.h5");
 
+        // History of old fields
+        let field_history: Vec<MeanFields<f64, Space2R2r>> = vec![];
+
         // Solver
         let solver_velx = HholtzAdi::new(
             &velx,
@@ -146,7 +151,7 @@ impl Navier2DLnse<f64, Space2R2r> {
         let solver_hholtz = [solver_velx, solver_vely, solver_temp];
 
         // Return
-        Navier2DLnse::<f64, Space2R2r> {
+        Navier2DNonLin::<f64, Space2R2r> {
             field,
             velx,
             vely,
@@ -162,11 +167,12 @@ impl Navier2DLnse<f64, Space2R2r> {
             params,
             quantities,
             mean,
+            field_history,
         }
     }
 }
 
-impl Navier2DLnse<Complex<f64>, Space2R2c> {
+impl Navier2DNonLin<Complex<f64>, Space2R2c> {
     /// Linearized Navier Stokes solver with periodic sidewalls
     /// # Panics
     /// 'bc' type not recognized
@@ -178,7 +184,7 @@ impl Navier2DLnse<Complex<f64>, Space2R2c> {
         dt: f64,
         aspect: f64,
         bc: &str,
-    ) -> Navier2DLnse<Complex<f64>, Space2R2c> {
+    ) -> Navier2DNonLin<Complex<f64>, Space2R2c> {
         // geometry scales
         let scale = [aspect, 1.];
         // diffusivities
@@ -216,6 +222,9 @@ impl Navier2DLnse<Complex<f64>, Space2R2c> {
         let mut mean = MeanFields::read_from_periodic(nx, ny, "mean.h5", Some(bc));
         mean.write_unwrap("mean_field.h5");
 
+        // History of old fields
+        let field_history: Vec<MeanFields<Complex<f64>, Space2R2c>> = vec![];
+
         // Solver
         let solver_velx = HholtzAdi::new(
             &velx,
@@ -233,7 +242,7 @@ impl Navier2DLnse<Complex<f64>, Space2R2c> {
         let solver_hholtz = [solver_velx, solver_vely, solver_temp];
 
         // Return
-        Navier2DLnse::<Complex<f64>, Space2R2c> {
+        Navier2DNonLin::<Complex<f64>, Space2R2c> {
             field,
             velx,
             vely,
@@ -249,22 +258,23 @@ impl Navier2DLnse<Complex<f64>, Space2R2c> {
             params,
             quantities,
             mean,
+            field_history,
         }
     }
 }
 
 macro_rules! impl_integrate_for_navier {
     ($s: ty) => {
-        impl<S> Integrate for Navier2DLnse<$s, S>
+        impl<S> Integrate for Navier2DNonLin<$s, S>
         where
             S: BaseSpace<f64, 2, Physical = f64, Spectral = $s>,
         {
             /// Update 1 timestep
             fn update(&mut self) {
                 // Buoyancy
-                let that = self.temp.to_ortho();
+                let that = self.temp.to_ortho() + self.mean.temp.to_ortho();
 
-                // Convection Veclocity
+                // Convection Velocity
                 self.velx.backward();
                 self.vely.backward();
                 let ux = self.velx.v.to_owned();
