@@ -1,6 +1,6 @@
 //! Calculate adjoint based sensitivity (gradient of
 //! final energy with respect to initial field)
-use super::functions::{l2_norm};
+use super::functions::l2_norm;
 use super::meanfield::MeanFields;
 use super::Navier2DLnse;
 use crate::field::BaseSpace;
