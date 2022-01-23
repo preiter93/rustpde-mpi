@@ -1,6 +1,7 @@
 //! Calculate adjoint based sensitivity (gradient of
 //! final energy with respect to initial field)
 use super::functions::{energy, l2_norm};
+use super::meanfield::MeanFields;
 use super::Navier2DLnse;
 use crate::field::BaseSpace;
 use crate::field::Field2;
@@ -8,11 +9,12 @@ use crate::io::traits::ReadWrite;
 use crate::navier_stokes_lnse::lnse_eq::DivNorm;
 use crate::solver::{hholtz_adi::HholtzAdi, poisson::Poisson, Solve};
 use crate::types::Scalar;
+use ndarray::Array2;
 use ndarray::{Ix2, ScalarOperand};
 use std::ops::Mul;
 
-/// Optimize (u + umean)**2 instead of u**2
-pub const WITH_MEAN: bool = false;
+/// Solve maximization problem instead of minimization
+pub const MAXIMIZE: bool = false;
 
 impl<T, S> Navier2DLnse<T, S>
 where
@@ -67,7 +69,7 @@ where
     }
 
     /// Update adjoint loop
-    pub fn update_adjoint(&mut self, add_mean_contribution: bool) {
+    pub fn update_adjoint(&mut self, target: Option<&MeanFields<T, S>>) {
         // Buoyancy
         let uyhat = self.vely.to_ortho();
 
@@ -80,8 +82,8 @@ where
         let temp = self.temp.v.to_owned();
 
         // Solve Velocity
-        self.solve_velx_adj(&velx, &vely, &temp, add_mean_contribution);
-        self.solve_vely_adj(&velx, &vely, &temp, add_mean_contribution);
+        self.solve_velx_adj(&velx, &vely, &temp, target);
+        self.solve_vely_adj(&velx, &vely, &temp, target);
 
         // Projection
         let div = self.div();
@@ -90,7 +92,7 @@ where
         self.update_pres(&div);
 
         // Solve Temperature
-        self.solve_temp_adj(&velx, &vely, &temp, &uyhat, add_mean_contribution);
+        self.solve_temp_adj(&velx, &vely, &temp, &uyhat, target);
 
         // update time
         self.time += self.dt;
@@ -107,6 +109,7 @@ where
         save_intervall: Option<f64>,
         beta1: f64,
         beta2: f64,
+        target: Option<&MeanFields<T, S>>,
     ) -> (f64, (Field2<T, S>, Field2<T, S>, Field2<T, S>)) {
         let mut timestep: usize = 0;
         let max_timestep = 10_000_000;
@@ -132,13 +135,13 @@ where
         }
 
         // Energy
-        let en = if WITH_MEAN {
+        let en = if let Some(t) = &target {
             self.velx.backward();
             self.vely.backward();
             self.temp.backward();
-            let velx = &(&self.velx.v + &self.mean.velx.v);
-            let vely = &(&self.vely.v + &self.mean.vely.v);
-            let temp = &(&self.temp.v + &self.mean.temp.v);
+            let velx = &(&self.velx.v - &t.velx.v);
+            let vely = &(&self.vely.v - &t.vely.v);
+            let temp = &(&self.temp.v - &t.temp.v);
             l2_norm(&velx, &velx, &vely, &vely, &temp, &temp, beta1, beta2)
         } else {
             energy(&mut self.velx, &mut self.vely, &mut self.temp, beta1, beta2)
@@ -148,19 +151,28 @@ where
         let fun_val = en;
 
         // Initial conditions of adjoint fields
-        let b1_c64: T = beta1.into();
-        let b2_c64: T = beta2.into();
+        let b1_c64: T = (1. * beta1).into();
+        let b2_c64: T = (1. * beta2).into();
+        if let Some(t) = &target {
+            self.velx.vhat -= &self.velx.space.from_ortho(&t.velx.vhat);
+            self.vely.vhat -= &self.vely.space.from_ortho(&t.vely.vhat);
+            self.temp.vhat -= &self.temp.space.from_ortho(&t.temp.vhat);
+        }
         self.velx.vhat *= b1_c64;
         self.vely.vhat *= b1_c64;
         self.temp.vhat *= b2_c64;
 
         // Adjoint loop
         self.reset_time();
-        let mut add_mean_contribution = WITH_MEAN;
+        // let mut t = target;
+        // TESTING
+        let mut t = None;
         loop {
             // +1 timestep
-            self.update_adjoint(add_mean_contribution);
-            add_mean_contribution = false;
+            self.update_adjoint(t);
+            // target state contributes only as initial
+            // condition
+            t = None;
             timestep += 1;
             // Save
             if let Some(dt_save) = &save_intervall {
@@ -179,9 +191,10 @@ where
         let mut grad_u = Field2::new(&self.velx.space);
         let mut grad_v = Field2::new(&self.vely.space);
         let mut grad_t = Field2::new(&self.temp.space);
-        grad_u.v.assign(&(&self.velx.v));
-        grad_v.v.assign(&(&self.vely.v));
-        grad_t.v.assign(&(&self.temp.v));
+        let fac = if MAXIMIZE { 1. } else { -1. };
+        grad_u.v.assign(&(fac * &self.velx.v));
+        grad_v.v.assign(&(fac * &self.vely.v));
+        grad_t.v.assign(&(fac * &self.temp.v));
         grad_u.forward();
         grad_v.forward();
         grad_t.forward();
@@ -213,8 +226,6 @@ where
         false
     }
 }
-
-use ndarray::Array2;
 
 /// Steepest descent optimization without energy increase of the
 /// target flow
