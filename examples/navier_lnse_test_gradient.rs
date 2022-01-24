@@ -17,10 +17,13 @@ fn main() {
     navier.init_random(1e-3);
     navier.write_unwrap("base.h5");
 
-    let (_, grad_adj) = navier.grad_adjoint(10., Some(10.0));
+    let (_, mut grad_adj) = navier.grad_adjoint(10., Some(10.0), 0.5, 0.5, None);
+    grad_adj.0.v *= -1.;
+    grad_adj.1.v *= -1.;
+    grad_adj.2.v *= -1.;
 
     navier.read_unwrap("base.h5");
-    let grad_fd = navier.grad_fd(10., Some(10.0));
+    let grad_fd = navier.grad_fd(10., Some(10.0), 0.5, 0.5);
 
     approx_eq_norm(&grad_adj.0.v, &grad_fd.0.v);
     approx_eq_norm(&grad_adj.1.v, &grad_fd.1.v);

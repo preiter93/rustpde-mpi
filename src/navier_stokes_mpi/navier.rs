@@ -255,7 +255,7 @@ where
     }
 
     /// Initialize all fields with random disturbances
-    pub fn random_disturbance(&mut self, amp: f64) {
+    pub fn init_random(&mut self, amp: f64) {
         if self.nrank() == 0 {
             apply_random_disturbance(&mut self.temp, amp);
             apply_random_disturbance(&mut self.ux, amp);
@@ -413,7 +413,7 @@ impl<'a> Navier2DMpi<'_, f64, Space2R2r<'a>>
             statistics: None,
         };
         // Initial condition
-        navier.random_disturbance(0.1);
+        navier.init_random(0.1);
         // Return
         navier
     }
@@ -563,7 +563,7 @@ impl<'a> Navier2DMpi<'_, Complex<f64>, Space2R2c<'a>>
             statistics: None,
         };
         // Initial condition
-        navier.random_disturbance(0.1);
+        navier.init_random(0.1);
         // Return
         navier
     }

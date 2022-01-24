@@ -31,10 +31,9 @@ where
         &mut self,
         max_time: f64,
         save_intervall: Option<f64>,
+        beta1: f64,
+        beta2: f64,
     ) -> (Field2<T, S>, Field2<T, S>, Field2<T, S>) {
-        // Weights of norm (vel, temp)
-        let (b1, b2) = (0.5, 0.5);
-
         // Perturbation strength
         let eps = 1e-5;
 
@@ -52,7 +51,7 @@ where
         self.pres.vhat *= T::zero();
         self.pseu.vhat *= T::zero();
         integrate(self, max_time, save_intervall);
-        let e_base = energy(&mut self.velx, &mut self.vely, &mut self.temp, b1, b2);
+        let e_base = energy(&mut self.velx, &mut self.vely, &mut self.temp, beta1, beta2);
 
         // Gradient with finite differences
         // Perturb at each coordinate and evaluate new energy
@@ -83,7 +82,7 @@ where
                 // Integrate
                 integrate(self, max_time, None);
                 // Gradient
-                let e_pert = energy(&mut self.velx, &mut self.vely, &mut self.temp, b1, b2);
+                let e_pert = energy(&mut self.velx, &mut self.vely, &mut self.temp, beta1, beta2);
                 grad_u.v[[i, j]] = 1. / eps * (e_pert - e_base);
             }
         }
@@ -111,7 +110,7 @@ where
                 // Integrate
                 integrate(self, max_time, None);
                 // Gradient
-                let e_pert = energy(&mut self.velx, &mut self.vely, &mut self.temp, b1, b2);
+                let e_pert = energy(&mut self.velx, &mut self.vely, &mut self.temp, beta1, beta2);
                 grad_v.v[[i, j]] = 1. / eps * (e_pert - e_base);
             }
         }
@@ -139,7 +138,7 @@ where
                 // Integrate
                 integrate(self, max_time, None);
                 // Gradient
-                let e_pert = energy(&mut self.velx, &mut self.vely, &mut self.temp, b1, b2);
+                let e_pert = energy(&mut self.velx, &mut self.vely, &mut self.temp, beta1, beta2);
                 grad_t.v[[i, j]] = 1. / eps * (e_pert - e_base);
             }
         }
