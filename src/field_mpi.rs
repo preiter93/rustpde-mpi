@@ -8,20 +8,15 @@
 //pub mod average;
 //pub mod read;
 //pub mod write;
+pub mod average;
+pub mod io;
 use crate::bases::BaseKind;
 use crate::bases::BaseSpace;
-use crate::field::io::{impl_read_write_field2, interpolate_2d};
-use crate::field::FieldBase;
-use crate::io::read_write_hdf5::{read_from_hdf5, write_to_hdf5};
-use crate::io::read_write_hdf5::{read_from_hdf5_complex, write_to_hdf5_complex};
-use crate::io::traits::ReadWrite;
-use crate::io::Result;
-use crate::mpi::{all_gather_sum, Equivalence};
 pub use crate::mpi::{BaseSpaceMpi, Decomp2d, Space2Mpi, Universe};
 use crate::types::FloatNum;
-use ndarray::{prelude::*, Data, DataMut, Ix, ScalarOperand, Zip};
+use ndarray::{prelude::*, Data, DataMut, Ix, ScalarOperand};
 use num_complex::Complex;
-use std::convert::{From, TryInto};
+use std::convert::TryInto;
 
 /// Two dimensional Field (Real in Physical space, Generic in Spectral Space)
 pub type Field2Mpi<T2, S> = FieldBaseMpi<f64, f64, T2, S, 2>;
@@ -77,10 +72,6 @@ pub struct FieldBaseMpi<A, T1, T2, S, const N: usize> {
     pub ndim: usize,
     /// Space
     pub space: S,
-    /// Field in physical space
-    pub v: Array<T1, Dim<[Ix; N]>>,
-    /// Field in spectral space
-    pub vhat: Array<T2, Dim<[Ix; N]>>,
     /// Field in physical space - x pencil
     pub v_x_pen: Array<T1, Dim<[Ix; N]>>,
     /// Field in physical space - y pencil
@@ -104,8 +95,6 @@ where
     /// Return a new field from a given space
     #[allow(clippy::similar_names)]
     pub fn new(space: &S) -> Self {
-        let v = space.ndarray_physical();
-        let vhat = space.ndarray_spectral();
         let v_x_pen = space.ndarray_physical_x_pen();
         let v_y_pen = space.ndarray_physical_y_pen();
         let vhat_x_pen = space.ndarray_spectral_x_pen();
@@ -115,8 +104,6 @@ where
         Self {
             ndim: N,
             space: space.clone(),
-            v,
-            vhat,
             v_x_pen,
             v_y_pen,
             vhat_x_pen,
@@ -133,45 +120,55 @@ where
             self.dx[i] *= *sc;
         }
     }
-}
 
-/// Conversion `FieldBase` -> `FieldBaseMpi`
-impl<A, T1, T2, S, const N: usize> From<&FieldBase<A, T1, T2, S, N>>
-    for FieldBaseMpi<A, T1, T2, S, N>
-where
-    A: FloatNum,
-    Complex<A>: ScalarOperand,
-    S: BaseSpace<A, N, Physical = T1, Spectral = T2> + BaseSpaceMpi<A, N>,
-{
-    fn from(item: &FieldBase<A, T1, T2, S, N>) -> Self {
-        let mut field_mpi = Self::new(&item.space);
-        field_mpi
+    /// Get coordinates that are local on processor
+    pub fn get_coords_local(&self, axis: usize) -> ArrayView1<'_, A> {
+        // Get mpi decomp
+        let dcp = &self
             .space
-            .scatter_to_y_pencil_phys(&item.v, &mut field_mpi.v_y_pen);
-        field_mpi
-            .space
-            .scatter_to_x_pencil_spec(&item.vhat, &mut field_mpi.vhat_y_pen);
-        field_mpi
+            .get_decomp_from_global_shape(&self.space.shape_physical())
+            .y_pencil;
+        self.x[axis].slice(s![dcp.st[axis]..=dcp.en[axis]])
     }
 }
 
-/// Conversion `FieldBaseMpi` -> `FieldBase`
-impl<A, T1, T2, S, const N: usize> From<&FieldBaseMpi<A, T1, T2, S, N>>
-    for FieldBase<A, T1, T2, S, N>
-where
-    A: FloatNum,
-    Complex<A>: ScalarOperand,
-    S: BaseSpace<A, N, Physical = T1, Spectral = T2> + BaseSpaceMpi<A, N>,
-{
-    fn from(item: &FieldBaseMpi<A, T1, T2, S, N>) -> Self {
-        let mut field = Self::new(&item.space);
-        item.space
-            .gather_from_y_pencil_phys(&item.v_y_pen, &mut field.v);
-        item.space
-            .gather_from_x_pencil_spec(&item.vhat_x_pen, &mut field.vhat);
-        field
-    }
-}
+// /// Conversion `FieldBase` -> `FieldBaseMpi`
+// impl<A, T1, T2, S, const N: usize> From<&FieldBase<A, T1, T2, S, N>>
+//     for FieldBaseMpi<A, T1, T2, S, N>
+// where
+//     A: FloatNum,
+//     Complex<A>: ScalarOperand,
+//     S: BaseSpace<A, N, Physical = T1, Spectral = T2> + BaseSpaceMpi<A, N>,
+// {
+//     fn from(item: &FieldBase<A, T1, T2, S, N>) -> Self {
+//         let mut field_mpi = Self::new(&item.space);
+//         field_mpi
+//             .space
+//             .scatter_to_y_pencil_phys(&item.v, &mut field_mpi.v_y_pen);
+//         field_mpi
+//             .space
+//             .scatter_to_x_pencil_spec(&item.vhat, &mut field_mpi.vhat_y_pen);
+//         field_mpi
+//     }
+// }
+//
+// /// Conversion `FieldBaseMpi` -> `FieldBase`
+// impl<A, T1, T2, S, const N: usize> From<&FieldBaseMpi<A, T1, T2, S, N>>
+//     for FieldBase<A, T1, T2, S, N>
+// where
+//     A: FloatNum,
+//     Complex<A>: ScalarOperand,
+//     S: BaseSpace<A, N, Physical = T1, Spectral = T2> + BaseSpaceMpi<A, N>,
+// {
+//     fn from(item: &FieldBaseMpi<A, T1, T2, S, N>) -> Self {
+//         let mut field = Self::new(&item.space);
+//         item.space
+//             .gather_from_y_pencil_phys(&item.v_y_pen, &mut field.v);
+//         item.space
+//             .gather_from_x_pencil_spec(&item.vhat_x_pen, &mut field.vhat);
+//         field
+//     }
+// }
 
 impl<A, T1, T2, S, const N: usize> FieldBaseMpi<A, T1, T2, S, N>
 where
@@ -179,35 +176,6 @@ where
     Complex<A>: ScalarOperand,
     S: BaseSpace<A, N, Physical = T1, Spectral = T2>,
 {
-    /// Forward transformation
-    pub fn forward(&mut self) {
-        self.space.forward_inplace(&self.v, &mut self.vhat);
-    }
-
-    /// Backward transformation
-    pub fn backward(&mut self) {
-        self.space.backward_inplace(&self.vhat, &mut self.v);
-    }
-
-    /// Transform from composite to orthogonal space
-    pub fn to_ortho(&self) -> Array<T2, Dim<[usize; N]>> {
-        self.space.to_ortho(&self.vhat)
-    }
-
-    /// Transform from orthogonal to composite space
-    pub fn from_ortho<S1>(&mut self, input: &ArrayBase<S1, Dim<[usize; N]>>)
-    where
-        S1: Data<Elem = T2>,
-    {
-        self.space.from_ortho_inplace(input, &mut self.vhat);
-    }
-
-    /// Gradient
-    // #[allow(clippy::cast_possible_wrap, clippy::cast_possible_truncation)]
-    pub fn gradient(&self, deriv: [usize; N], scale: Option<[A; N]>) -> Array<T2, Dim<[usize; N]>> {
-        self.space.gradient(&self.vhat, deriv, scale)
-    }
-
     /// Generate grid deltas from coordinates
     ///
     /// ## Panics
@@ -351,16 +319,6 @@ where
         self.space.get_nprocs()
     }
 
-    // /// Get pencil decomposition (physical domain)
-    // pub fn decomp_physical(&self) -> &Decomp2d {
-    //     self.space.get_decomp_phys()
-    // }
-    //
-    // /// Get pencil decomposition (spectral domain)
-    // pub fn decomp_spectral(&self) -> &Decomp2d {
-    //     self.space.get_decomp_spec()
-    // }
-
     /// Forward transformation with mpi
     pub fn forward_mpi(&mut self) {
         self.space
@@ -397,77 +355,101 @@ where
         self.space.gradient_mpi(&self.vhat_x_pen, deriv, scale)
     }
 
-    /// Gather distributed data on root (y-pencil, physical domain)
-    pub fn gather_physical(&mut self) {
-        self.space
-            .gather_from_y_pencil_phys(&self.v_y_pen, &mut self.v);
+    /// Gather distributed data on root (x-pencil, spectral domain)
+    ///
+    /// # Info
+    /// Must be called from mpi processor non-root
+    pub fn gather_spectral(&self) {
+        self.space.gather_from_x_pencil_spec(&self.vhat_x_pen);
     }
 
     /// Gather distributed data on root (x-pencil, spectral domain)
-    pub fn gather_spectral(&mut self) {
+    ///
+    /// # Info
+    /// Must be called from mpi processor root
+    pub fn gather_spectral_root<S1>(&self, vhat: &mut ArrayBase<S1, Dim<[usize; N]>>)
+    where
+        S1: DataMut<Elem = T2>,
+    {
         self.space
-            .gather_from_x_pencil_spec(&self.vhat_x_pen, &mut self.vhat);
+            .gather_from_x_pencil_spec_root(&self.vhat_x_pen, vhat);
     }
 
-    /// Gather distributed data on all participating processors (y-pencil, physical domain)
-    pub fn all_gather_physical(&mut self) {
-        self.space
-            .all_gather_from_y_pencil_phys(&self.v_y_pen, &mut self.v);
+    /// Gather distributed data on root (y-pencil, physical domain)
+    ///
+    /// # Info
+    /// Must be called from mpi processor non-root
+    pub fn gather_physical(&self) {
+        self.space.gather_from_y_pencil_phys(&self.v_y_pen);
     }
 
-    /// Gather distributed data on all participating processors (x-pencil, spectral domain)
-    pub fn all_gather_spectral(&mut self) {
-        self.space
-            .all_gather_from_x_pencil_spec(&self.vhat_x_pen, &mut self.vhat);
+    /// Gather distributed data on root (y-pencil, physical domain)
+    ///
+    /// # Info
+    /// Must be called from mpi processor root
+    pub fn gather_physical_root<S1>(&self, v: &mut ArrayBase<S1, Dim<[usize; N]>>)
+    where
+        S1: DataMut<Elem = T1>,
+    {
+        self.space.gather_from_y_pencil_phys_root(&self.v_y_pen, v);
     }
 
     /// Send data from root to all processors (y-pencil, physical domain)
+    ///
+    /// # Info
+    /// Must be called from mpi processor non-root
     pub fn scatter_physical(&mut self) {
-        self.space
-            .scatter_to_y_pencil_phys(&self.v, &mut self.v_y_pen);
+        self.space.scatter_to_y_pencil_phys(&mut self.v_y_pen);
     }
 
-    /// Send data from root to all processors   (x-pencil, spectral domain)
-    pub fn scatter_spectral(&mut self) {
-        self.space
-            .scatter_to_x_pencil_spec(&self.vhat, &mut self.vhat_x_pen);
-    }
-
-    /// Scatter data from root to all processors (y-pencil, physical domain)
-    pub fn all_scatter_phys<S1, S2>(
-        &mut self,
-        v: &ArrayBase<S1, Dim<[usize; N]>>,
-        v_y_pen: &mut ArrayBase<S2, Dim<[usize; N]>>,
-    ) where
+    /// Send data from root to all processors (y-pencil, physical domain)
+    ///
+    /// # Info
+    /// Must be called from mpi processor root
+    pub fn scatter_physical_root<S1>(&mut self, v: &ArrayBase<S1, Dim<[usize; N]>>)
+    where
         S1: Data<Elem = T1>,
-        S2: DataMut<Elem = T1>,
     {
-        self.space.scatter_to_y_pencil_phys(v, v_y_pen);
+        self.space
+            .scatter_to_y_pencil_phys_root(v, &mut self.v_y_pen);
     }
 
-    /// Scatter data from root to all processors (x-pencil, spectral domain)
-    pub fn all_scatter_spec<S1, S2>(
-        &mut self,
-        vhat: &ArrayBase<S1, Dim<[usize; N]>>,
-        vhat_x_pen: &mut ArrayBase<S2, Dim<[usize; N]>>,
-    ) where
+    /// Send data from root to all processors (x-pencil, spectral domain)
+    ///
+    /// # Info
+    /// Must be called from mpi processor non-root
+    pub fn scatter_spectral(&mut self) {
+        self.space.scatter_to_x_pencil_spec(&mut self.vhat_x_pen);
+    }
+
+    /// Send data from root to all processors (x-pencil, spectral domain)
+    ///
+    /// # Info
+    /// Must be called from mpi processor root
+    pub fn scatter_spectral_root<S1>(&mut self, vhat: &ArrayBase<S1, Dim<[usize; N]>>)
+    where
         S1: Data<Elem = T2>,
-        S2: DataMut<Elem = T2>,
     {
-        self.space.scatter_to_x_pencil_spec(vhat, vhat_x_pen);
+        self.space
+            .scatter_to_x_pencil_spec_root(vhat, &mut self.vhat_x_pen);
     }
 
-    // /// Split global data to y pencil for physical domain
-    // pub fn split_physical(&mut self) {
-    //     self.space
-    //         .split_to_y_pencil_phys(&self.v, &mut self.v_y_pen);
-    // }
-    //
-    // /// Split global data to x pencil for spectral domain
-    // pub fn split_spectral(&mut self) {
-    //     self.space
-    //         .split_to_x_pencil_spec(&self.vhat, &mut self.vhat_x_pen);
-    // }
+    /// Gather distributed data on all participating processors (y-pencil, physical domain)
+    pub fn all_gather_physical<S1>(&mut self, v: &mut ArrayBase<S1, Dim<[usize; N]>>)
+    where
+        S1: DataMut<Elem = T1>,
+    {
+        self.space.all_gather_from_y_pencil_phys(&self.v_y_pen, v);
+    }
+
+    /// Gather distributed data on all participating processors (x-pencil, spectral domain)
+    pub fn all_gather_spectral<S1>(&mut self, vhat: &mut ArrayBase<S1, Dim<[usize; N]>>)
+    where
+        S1: DataMut<Elem = T2>,
+    {
+        self.space
+            .all_gather_from_x_pencil_spec(&self.vhat_x_pen, vhat);
+    }
 
     /// Transpose physical data from x to y pencil
     pub fn transpose_x_to_y_phys(&mut self) {
@@ -493,153 +475,3 @@ where
             .transpose_y_to_x_spec(&self.vhat_y_pen, &mut self.vhat_x_pen);
     }
 }
-
-impl<A: FloatNum, T2, S> FieldBaseMpi<A, A, T2, S, 2>
-where
-    S: BaseSpace<A, 2, Physical = A, Spectral = T2>,
-{
-    /// Return volumetric weighted average along axis
-    pub fn average_axis(&self, axis: usize) -> Array1<A> {
-        let mut weighted_avg = Array2::<A>::zeros(self.v.raw_dim());
-        let length = self.dx[axis].sum();
-        Zip::from(self.v.lanes(Axis(axis)))
-            .and(weighted_avg.lanes_mut(Axis(axis)))
-            .for_each(|ref v, mut s| {
-                s.assign(&(v * &self.dx[axis] / length));
-            });
-        weighted_avg.sum_axis(Axis(axis))
-    }
-
-    /// Return volumetric weighted average
-    pub fn average(&self) -> A {
-        let mut avg_x = Array1::<A>::zeros(self.dx[1].raw_dim());
-        let length = self.dx[1].sum();
-        avg_x.assign(&(self.average_axis(0) * &self.dx[1] / length));
-        let avg = avg_x.sum_axis(Axis(0));
-        avg[[]]
-    }
-}
-
-impl<A, T2, S> FieldBaseMpi<A, A, T2, S, 2>
-where
-    A: FloatNum + Equivalence + std::iter::Sum,
-    S: BaseSpace<A, 2, Physical = A, Spectral = T2> + BaseSpaceMpi<A, 2>,
-{
-    /// Return volumetric weighted average along lane
-    pub fn average_lane_mpi<S1: Data<Elem = A>>(
-        &self,
-        lane: &ArrayBase<S1, Ix1>,
-        dx: &ArrayBase<S1, Ix1>,
-        length: A,
-        is_contig: bool,
-    ) -> A {
-        // Average
-        let average = (lane * dx / length).sum();
-        // Check if domain is mpi broken
-        if is_contig {
-            // Axis is contiguous
-            average
-        } else {
-            // Axis is non contiguous
-            let mut average_global = A::zero();
-            all_gather_sum(&self.space.get_universe(), &average, &mut average_global);
-            average_global
-        }
-    }
-
-    /// Return volumetric weighted average along axis
-    ///
-    /// # Panics
-    /// If the wrong `DecompHandler` was returned,
-    /// which does not match the array size
-    pub fn average_axis_mpi(&self, axis: usize) -> Array1<A> {
-        // Get mpi decomp
-        let space = &self.space;
-        let dcp = &space
-            .get_decomp_from_global_shape(&space.shape_physical())
-            .y_pencil;
-        assert!(dcp.sz == self.v_y_pen.shape());
-        let length = self.dx[axis].sum();
-        let dx = self.dx[axis].slice(s![dcp.st[axis]..=dcp.en[axis]]);
-        let is_contig = axis == dcp.axis_contig;
-        let mut avg = Array1::<A>::zeros([self.v_y_pen.shape()[1], self.v_y_pen.shape()[0]][axis]);
-        for (lane, x) in self
-            .v_y_pen
-            .lanes(Axis(axis))
-            .into_iter()
-            .zip(avg.iter_mut())
-        {
-            *x = self.average_lane_mpi(&lane, &dx, length, is_contig);
-        }
-        avg
-    }
-
-    /// Return volumetric weighted average
-    pub fn average_mpi(&self) -> A {
-        // Get mpi decomp
-        let space = &self.space;
-        let dcp = &space
-            .get_decomp_from_global_shape(&space.shape_physical())
-            .y_pencil;
-        // Average x
-        let dx = self.dx[1].slice(s![dcp.st[1]..=dcp.en[1]]);
-        let length = self.dx[1].sum();
-        let mut avg_x = Array1::<A>::zeros(dx.raw_dim());
-        avg_x.assign(&(self.average_axis_mpi(0) * dx / length));
-        // Average y
-        let avg = avg_x.sum_axis(Axis(0));
-        // Check if domain is mpi broken
-        if dcp.axis_contig == 1 {
-            avg[[]]
-        } else {
-            let mut avg_global = A::zero();
-            all_gather_sum(&self.space.get_universe(), &avg[[]], &mut avg_global);
-            avg_global
-        }
-    }
-}
-
-impl_read_write_field2!(Field2Mpi<f64, S>, f64, f64, read_from_hdf5, write_to_hdf5, write_to_hdf5);
-impl_read_write_field2!(
-    Field2Mpi<Complex<f64>, S>,
-    f64,
-    Complex<f64>,
-    read_from_hdf5_complex,
-    write_to_hdf5,
-    write_to_hdf5_complex
-);
-
-//
-// /// Return volumetric weighted average along axis
-// pub fn average_axis_mpi(&self, axis: usize) -> Array1<A> {
-//     // Get mpi decomp
-//     let space = &self.space;
-//     let dcp = &space
-//         .get_decomp_from_global_shape(&space.shape_physical())
-//         .y_pencil;
-//     assert!(dcp.sz == self.v_y_pen.shape());
-//     // Calculate average
-//     let length = self.dx[axis].sum();
-//     let dx = self.dx[axis].slice(s![dcp.st[axis]..=dcp.en[axis]]);
-//     let mut avg = Array2::<A>::zeros(self.v_y_pen.raw_dim());
-//     Zip::from(self.v_y_pen.lanes(Axis(axis)))
-//         .and(avg.lanes_mut(Axis(axis)))
-//         .for_each(|ref v, mut s| {
-//             s.assign(&(v * &dx / length));
-//         });
-//     let avg_axis = avg.sum_axis(Axis(axis));
-//     // Check if domain is mpi broken
-//     if axis == dcp.axis_contig {
-//         // Axis is contiguous
-//         avg_axis
-//     } else {
-//         // Axis is non contiguous
-//         let mut avg_axis_global = Array1::<A>::zeros(avg_axis.raw_dim());
-//         Zip::from(&avg_axis)
-//             .and(&mut avg_axis_global)
-//             .for_each(|&l, mut g| {
-//                 all_gather_sum(&self.space.get_universe(), &l, &mut g);
-//             });
-//         avg_axis_global
-//     }
-// }

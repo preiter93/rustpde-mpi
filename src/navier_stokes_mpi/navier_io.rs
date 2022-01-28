@@ -21,16 +21,17 @@ where
     /// # Errors
     /// Failed to read
     pub fn read(&mut self, filename: &str) -> Result<()> {
+        // Scalar
         if self.nrank() == 0 {
-            self.ux.read(&filename, "ux")?;
-            self.uy.read(&filename, "uy")?;
-            self.temp.read(&filename, "temp")?;
-            self.pres.read(&filename, "pres")?;
-            self.time = read_scalar_from_hdf5::<f64>(&filename, "time")?;
             println!(" <== {:?}", filename);
+            self.time = read_scalar_from_hdf5::<f64>(&filename, "time")?;
         }
-        self.scatter();
         broadcast_scalar(self.universe, &mut self.time);
+        // Field
+        self.ux.read(&filename, "ux")?;
+        self.uy.read(&filename, "uy")?;
+        self.temp.read(&filename, "temp")?;
+        self.pres.read(&filename, "pres")?;
         Ok(())
     }
 
@@ -48,18 +49,31 @@ where
     /// # Errors
     /// Failed to write
     pub fn write(&mut self, filename: &str) -> Result<()> {
+        // Fields
+        self.ux.backward_mpi();
+        self.uy.backward_mpi();
+        self.temp.backward_mpi();
+        self.pres.backward_mpi();
+        self.ux.write(&filename, "ux")?;
+        self.uy.write(&filename, "uy")?;
+        self.temp.write(&filename, "temp")?;
+        self.pres.write(&filename, "pres")?;
+        if let Some(field) = &self.tempbc {
+            field.write(&filename, "tempbc")?;
+        }
+        // Scalars
         if self.nrank() == 0 {
-            self.ux.backward();
-            self.uy.backward();
-            self.temp.backward();
-            self.pres.backward();
-            self.ux.write(&filename, "ux")?;
-            self.uy.write(&filename, "uy")?;
-            self.temp.write(&filename, "temp")?;
-            self.pres.write(&filename, "pres")?;
-            if let Some(field) = &self.tempbc {
-                field.write(&filename, "tempbc")?;
-            }
+            // self.ux.backward();
+            // self.uy.backward();
+            // self.temp.backward();
+            // self.pres.backward();
+            // self.ux.write(&filename, "ux")?;
+            // self.uy.write(&filename, "uy")?;
+            // self.temp.write(&filename, "temp")?;
+            // self.pres.write(&filename, "pres")?;
+            // if let Some(field) = &self.tempbc {
+            //     field.write(&filename, "tempbc")?;
+            // }
             // Write scalars
             write_scalar_to_hdf5(&filename, "time", self.time)?;
             for (key, value) in &self.params {
@@ -100,12 +114,12 @@ where
         // Write flow field
         if let Some(dt_save) = &self.write_intervall {
             if (self.time + self.dt / 2.) % dt_save < self.dt {
-                self.gather();
+                // self.gather();
                 self.write_unwrap(&flow_name);
             }
         } else {
             // TODO: Parallel writing, get rid of gather...
-            self.gather();
+            // self.gather();
             self.write_unwrap(&flow_name);
         }
 

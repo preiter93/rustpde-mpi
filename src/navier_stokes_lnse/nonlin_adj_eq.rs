@@ -185,6 +185,7 @@ where
     /// $$
     /// (1 - dt*D) temp\\_new = -dt*C(temp) + dt*fbc + temp
     /// $$
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn solve_temp_adj(
         &mut self,
         velx: &Array2<f64>,

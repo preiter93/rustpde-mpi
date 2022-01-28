@@ -1,7 +1,7 @@
 //! # Solver for Boussinesq equations (mpi supported)
 //! Default: Rayleigh Benard Convection
 use super::boundary_conditions::{bc_hc, bc_hc_periodic, bc_rbc, bc_rbc_periodic};
-use super::boundary_conditions::{pres_bc_rbc, pres_bc_rbc_periodic};
+// use super::boundary_conditions::{pres_bc_rbc, pres_bc_rbc_periodic};
 use super::functions::{apply_cos_sin, apply_random_disturbance, apply_sin_cos};
 use super::functions::{get_ka, get_nu};
 use super::functions::{norm_l2_c64, norm_l2_f64};
@@ -156,87 +156,10 @@ where
 
 impl<T, S> Navier2DMpi<'_, T, S>
 where
-    S: BaseSpace<f64, 2, Physical = f64, Spectral = T>,
-    T: Scalar + Mul<f64, Output = T> + Div<f64, Output = T>,
-{
-    /// Returns Nusselt number (heat flux at the plates)
-    /// $$
-    /// Nu = \langle - dTdz \rangle\\_x (0/H))
-    /// $$
-    pub fn eval_nu(&mut self) -> f64 {
-        use super::functions::eval_nu;
-        eval_nu(&mut self.temp, &mut self.field, &self.tempbc, &self.scale)
-    }
-
-    /// Returns volumetric Nusselt number
-    /// $$
-    /// Nuvol = \langle uy*T/kappa - dTdz \rangle\\_V
-    /// $$
-    ///
-    /// # Panics
-    /// If *ka* is not in params
-    pub fn eval_nuvol(&mut self) -> f64 {
-        use super::functions::eval_nuvol;
-        let ka = self.params.get("ka").unwrap();
-        eval_nuvol(
-            &mut self.temp,
-            &mut self.uy,
-            &mut self.field,
-            &self.tempbc,
-            *ka,
-            &self.scale,
-        )
-    }
-
-    /// Returns Reynolds number based on kinetic energy
-    ///
-    /// # Panics
-    /// If *nu* is not in params
-    pub fn eval_re(&mut self) -> f64 {
-        use super::functions::eval_re;
-        let nu = self.params.get("nu").unwrap();
-        eval_re(
-            &mut self.ux,
-            &mut self.uy,
-            &mut self.field,
-            *nu,
-            &self.scale,
-        )
-    }
-}
-
-impl<T, S> Navier2DMpi<'_, T, S>
-where
     S: BaseSpace<f64, 2, Physical = f64, Spectral = T>
         + BaseSpaceMpi<f64, 2, Physical = f64, Spectral = T>,
     T: Zero,
 {
-    /// Gather all arrays from mpi distribution on root
-    pub fn gather(&mut self) {
-        for field in &mut [&mut self.ux, &mut self.uy, &mut self.temp, &mut self.pres] {
-            field.backward_mpi();
-            field.gather_physical();
-            field.gather_spectral();
-        }
-    }
-
-    /// Gather all arrays from mpi distribution to all participating processors
-    pub fn all_gather(&mut self) {
-        for field in &mut [&mut self.ux, &mut self.uy, &mut self.temp, &mut self.pres] {
-            field.backward_mpi();
-            field.all_gather_physical();
-            field.all_gather_spectral();
-        }
-    }
-
-    /// Scatter all arrays from root to all processes
-    pub fn scatter(&mut self) {
-        for field in &mut [&mut self.ux, &mut self.uy, &mut self.temp, &mut self.pres] {
-            field.scatter_physical();
-            field.scatter_spectral();
-        }
-    }
-
     /// Initialize velocity with fourier modes
     ///
     /// ux = amp \* sin(mx)cos(nx)
@@ -244,30 +167,24 @@ where
     pub fn set_velocity(&mut self, amp: f64, m: f64, n: f64) {
         apply_sin_cos(&mut self.ux, amp, m, n);
         apply_cos_sin(&mut self.uy, -amp, m, n);
-        self.scatter();
     }
     /// Initialize temperature with fourier modes
     ///
     /// temp = -amp \* cos(mx)sin(ny)
     pub fn set_temperature(&mut self, amp: f64, m: f64, n: f64) {
         apply_cos_sin(&mut self.temp, -amp, m, n);
-        self.scatter();
     }
 
     /// Initialize all fields with random disturbances
     pub fn init_random(&mut self, amp: f64) {
-        if self.nrank() == 0 {
-            apply_random_disturbance(&mut self.temp, amp);
-            apply_random_disturbance(&mut self.ux, amp);
-            apply_random_disturbance(&mut self.uy, amp);
-            // Remove bc base from temp
-            if let Some(x) = &self.tempbc {
-                self.temp.v = &self.temp.v - &x.v;
-                self.temp.forward();
-            }
+        apply_random_disturbance(&mut self.temp, amp);
+        apply_random_disturbance(&mut self.ux, amp);
+        apply_random_disturbance(&mut self.uy, amp);
+        // Remove bc base from temp
+        if let Some(x) = &self.tempbc {
+            self.temp.v_y_pen = &self.temp.v_y_pen - &x.v_y_pen;
+            self.temp.forward_mpi();
         }
-        self.scatter();
-        self.all_gather()
     }
 }
 
@@ -336,8 +253,8 @@ impl<'a> Navier2DMpi<'_, f64, Space2R2r<'a>>
                     universe,
                 ));
                 let tempbc = bc_rbc(nx, ny, universe);
-                let presbc = pres_bc_rbc(nx, ny, universe);
-                (temp, Some(tempbc), Some(presbc))
+                // let presbc = pres_bc_rbc(nx, ny, universe);
+                (temp, Some(tempbc), None)
             }
             "hc" => {
                 let temp = Field2Mpi::new(&Space2Mpi::new(
@@ -487,8 +404,8 @@ impl<'a> Navier2DMpi<'_, Complex<f64>, Space2R2c<'a>>
                     universe,
                 ));
                 let tempbc = bc_rbc_periodic(nx, ny, universe);
-                let presbc = pres_bc_rbc_periodic(nx, ny, universe);
-                (temp, Some(tempbc), Some(presbc))
+                // let presbc = pres_bc_rbc_periodic(nx, ny, universe);
+                (temp, Some(tempbc), None)
             }
             "hc" => {
                 let temp = Field2Mpi::new(&Space2Mpi::new(

@@ -22,8 +22,8 @@ fn main() {
         &universe,
     );
     let mut field = Field2Mpi::new(&space);
-    let x = &field.x[0];
-    let y = &field.x[1];
+    let x = field.get_coords_local(0).to_owned();
+    let y = field.get_coords_local(1).to_owned();
 
     // Setup hholtz solver
     let alpha = 1e-5;
@@ -31,24 +31,22 @@ fn main() {
 
     // Setup rhs and solution
     let n = std::f64::consts::PI / 2.;
-    let mut expected = field.v.clone();
+    let mut expected = field.v_y_pen.clone();
     for (i, xi) in x.iter().enumerate() {
         for (j, yi) in y.iter().enumerate() {
-            field.v[[i, j]] = (n * xi).cos() * (n * yi).cos();
-            expected[[i, j]] = 1. / (1. + alpha * n * n * 2.) * field.v[[i, j]];
+            field.v_y_pen[[i, j]] = (n * xi).cos() * (n * yi).cos();
+            expected[[i, j]] = 1. / (1. + alpha * n * n * 2.) * field.v_y_pen[[i, j]];
         }
     }
 
     // Solve
-    field.forward();
-    field.scatter_spectral();
+    field.forward_mpi();
     let rhs = field.to_ortho_mpi();
     hholtz.solve(&rhs, &mut field.vhat_x_pen, 0);
     field.backward_mpi();
-    field.all_gather_physical();
 
     // Compare
-    approx_eq(&field.v, &expected);
+    approx_eq(&field.v_y_pen, &expected);
 }
 
 fn approx_eq<S, D>(result: &ndarray::ArrayBase<S, D>, expected: &ndarray::ArrayBase<S, D>)
