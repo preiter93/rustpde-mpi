@@ -20,15 +20,15 @@ where
     /// # Errors
     /// Failed to read
     pub fn read(&mut self, filename: &str) -> Result<()> {
-        // self.velx.read(&filename, "ux")?;
-        // self.vely.read(&filename, "uy")?;
-        // self.temp.read(&filename, "temp")?;
+        self.velx.read(&filename, "ux")?;
+        self.vely.read(&filename, "uy")?;
+        self.temp.read(&filename, "temp")?;
         // self.pres.read(&filename, "pres")?;
-        self.navier.read(&filename)?;
+        //self.navier.read(&filename)?;
 
         // TEST
-        self.navier.pres.v.fill(0.);
-        self.navier.pres.forward();
+        self.pres.v.fill(0.);
+        self.pres.forward();
         // Read time
         self.time = read_scalar_from_hdf5::<f64>(&filename, "time")?;
         println!(" <== {:?}", filename);
@@ -49,18 +49,18 @@ where
     /// # Errors
     /// Failed to write
     pub fn write(&mut self, filename: &str) -> Result<()> {
-        // self.velx.backward();
-        // self.vely.backward();
-        // self.temp.backward();
-        // self.pres.backward()
-        // self.velx.write(&filename, "ux")?;
-        // self.vely.write(&filename, "uy")?;
-        // self.temp.write(&filename, "temp")?;
-        // self.pres.write(&filename, "pres")?;
-        // if let Some(field) = &self.tempbc {
-        //     field.write(&filename, "tempbc")?;
-        // }
-        self.navier.write(&filename)?;
+        self.velx.backward();
+        self.vely.backward();
+        self.temp.backward();
+        self.pres.backward();
+        self.velx.write(&filename, "ux")?;
+        self.vely.write(&filename, "uy")?;
+        self.temp.write(&filename, "temp")?;
+        self.pres.write(&filename, "pres")?;
+        if let Some(field) = &self.tempbc {
+            field.write(&filename, "tempbc")?;
+        }
+        //self.navier.write(&filename)?;
 
         // Write scalars
         write_scalar_to_hdf5(&filename, "time", self.time)?;
@@ -136,6 +136,11 @@ where
             if let Err(e) = writeln!(file, "{} {} {} {}", self.time, nu, nuv, re) {
                 eprintln!("Couldn't write to file: {}", e);
             }
+            // residual
+            let [res_u, res_v, res_t] = self.norm_residual();
+            println!("|U| = {:10.2e}", res_u);
+            println!("|V| = {:10.2e}", res_v);
+            println!("|T| = {:10.2e}", res_t);
         }
     }
 }
