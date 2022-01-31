@@ -61,7 +61,7 @@ print("Tmax:", np.max(tbc))
 
 print("Plot {:}".format(filename))
 if u is not None:
-    fig, ax = plot_streamplot(x, y, tbc, u, v, return_fig=True)
+    fig, ax = plot_streamplot(x, y, t + tbc, u, v, return_fig=True)
 else:
     fig, ax = plot_contour(x, y, t + tbc, return_fig=True)
 
