@@ -4,7 +4,7 @@ import glob
 import re
 import matplotlib.pyplot as plt
 from utils.plot_utils import plot_contour
-from utils.plot_utils import plot_streamplot
+from utils.plot_utils import plot_quiver
 import os.path
 import ffmpeg
 
@@ -56,6 +56,6 @@ for i, f in enumerate(fname[i0:i9:step]):
 
     print("Plot {:}".format(filename))
     # fig, ax = plot_contour(x, y, t, return_fig=True)
-    fig, ax = plot_streamplot(x, y, t + tbc, u, v, return_fig=True)
+    fig, ax = plot_quiver(x, y, t + tbc, u, v, return_fig=True)
     fig.savefig(figname, dpi=200, bbox_inches="tight")
     plt.close("all")
