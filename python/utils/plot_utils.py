@@ -62,18 +62,18 @@ def plot_quiver(x, y, t, u, v, skip=None, return_fig=False):
     ax.set_xlim(x.min(), x.max())
     ax.set_ylim(y.min(), y.max())
 
-    speed = 2.*np.max(np.sqrt(u ** 2 + v ** 2))
+    speed = 3.*np.max(np.sqrt(u ** 2 + v ** 2))
     if skip is None:
-        skip = t.shape[0] // 16
+        skip = t.shape[0] // 33
     ax.quiver(
         xx[::skip, ::skip],
         yy[::skip, ::skip],
         u[::skip, ::skip] / speed,
         v[::skip, ::skip] / speed,
-        scale=7.9,
-        width=0.005,
-        alpha=0.5,
-        headwidth=4,
+        scale=12.9,
+        width=0.002,
+        alpha=0.9,
+        headwidth=3,
     )
     if return_fig:
         return fig, ax
