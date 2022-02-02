@@ -10,6 +10,7 @@
 //pub mod write;
 pub mod average;
 pub mod io;
+pub mod io_mpi;
 use crate::bases::BaseKind;
 use crate::bases::BaseSpace;
 pub use crate::mpi::{BaseSpaceMpi, Decomp2d, Space2Mpi, Universe};

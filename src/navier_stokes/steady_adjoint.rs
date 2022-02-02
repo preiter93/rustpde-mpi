@@ -539,7 +539,6 @@ macro_rules! impl_integrate_for_navier_adjoint {
         {
             /// Update 1 timestep
             fn update(&mut self) {
-
                 // *** Forward step to calculate residual ***
                 {
                     let dt_navier = DT_NAVIER;
