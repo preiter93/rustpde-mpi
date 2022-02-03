@@ -39,3 +39,7 @@ harness = false
 [[bench]]
 name = "benchmark_navier"
 harness = false
+
+[features]
+# Read write in parallel
+mpio = ["hdf5/mpio"]

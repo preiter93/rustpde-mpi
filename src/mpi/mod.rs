@@ -4,6 +4,7 @@ pub use funspace::mpi::broadcast_scalar;
 pub use funspace::mpi::gather_sum;
 pub use funspace::mpi::initialize;
 pub use funspace::mpi::space_traits::BaseSpaceMpi;
+pub use funspace::mpi::AsRaw;
 pub use funspace::mpi::Communicator;
 pub use funspace::mpi::Decomp2d;
 pub use funspace::mpi::Equivalence;

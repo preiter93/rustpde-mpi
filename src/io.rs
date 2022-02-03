@@ -1,6 +1,7 @@
 //! Interface between ndarray and hdf5 for
 //! easier reading/writing of scalars and multidimensional arrays.
 pub mod read_write_hdf5;
+pub mod read_write_mpi_hdf5;
 pub mod read_write_slice_hdf5;
 pub mod traits;
 pub use hdf5::H5Type;

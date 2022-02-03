@@ -1,5 +1,5 @@
 //! Implement io routines for `FieldBaseMpi`
-#![allow(clippy::single_component_path_imports)]
+#![cfg(not(feature = "mpio"))]
 use super::{BaseSpace, BaseSpaceMpi, Field2Mpi};
 use crate::io::read_write_hdf5::{read_from_hdf5, write_to_hdf5};
 use crate::io::read_write_hdf5::{read_from_hdf5_complex, write_to_hdf5_complex};

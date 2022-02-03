@@ -67,15 +67,13 @@ where
     Ok(())
 }
 
-/// Read ndarray from hdf5 file
+/// Read an ndarray dataset
 ///
 /// # Errors
-/// Errors when file/variable does not exist and
-/// when array is not supported by ndarrays
+/// File or dataset do not exist.
 ///
 /// # Panics
-/// Panics when  array is not supported by ndarrays
-/// `into_dimensionality`.
+/// Panics when `into_dimensionality` fails.
 pub fn read_from_hdf5<A, D>(filename: &str, varname: &str) -> Result<Array<A, D>>
 where
     A: H5Type,
@@ -93,15 +91,13 @@ where
     Ok(x)
 }
 
-/// Read complex typed ndarray from hdf5 file
+/// Read an ndarray dataset
 ///
 /// # Errors
-/// Errors when file/variable does not exist and
-/// when array is not supported by ndarrays
+/// File or dataset do not exist.
 ///
 /// # Panics
-/// Panics when  array is not supported by ndarrays
-/// `into_dimensionality`.
+/// Panics when `into_dimensionality` fails.
 pub fn read_from_hdf5_complex<A, D>(filename: &str, varname: &str) -> Result<Array<Complex<A>, D>>
 where
     A: H5Type + Num + Clone,
@@ -123,12 +119,13 @@ where
     Ok(array)
 }
 
-/// Write ndarray to hdf5 file
+/// Write an ndarray dataset.
+///
+/// Creates new file or append to existing file.
 ///
 /// # Errors
-/// When file does not exist or when file and
-/// variable exists, but variable has different
-/// shape than input array (assign new value will fail).
+/// File does not exist or file and dataset exist,
+/// but shapes mismatch.
 pub fn write_to_hdf5<A, S, D>(
     filename: &str,
     varname: &str,
@@ -164,12 +161,13 @@ where
     Ok(())
 }
 
-/// Write complex typed ndarray to hdf5 file
+/// Write an ndarray dataset.
+///
+/// Creates new file or append to existing file.
 ///
 /// # Errors
-/// When file does not exist or when file and
-/// variable exists, but variable has different
-/// shape than input array (assign new value will fail).
+/// File does not exist or file and dataset exist,
+/// but shapes mismatch.
 pub fn write_to_hdf5_complex<A, S, D>(
     filename: &str,
     varname: &str,

@@ -1,4 +1,7 @@
-//! `Hdf5` functions to write ndarrays
+//! `Hdf5` functions to read write ndarrays with
+//! mpi support, to write in parallel
+#![cfg(feature = "mpio")]
+use crate::mpi::{AsRaw, Universe};
 use num_complex::Complex;
 
 /// Write a slice of an ndarray dataset to an
@@ -15,9 +18,13 @@ use num_complex::Complex;
 /// # Panics
 /// Mismatch of number of dimensions between array
 /// and `full_shape`.
-pub fn write_slice<A, S, D, T, Sh>(
+///
+/// # TODO
+/// Check that slices do not overlap.
+pub fn write_mpi<'a, A, S, D, T, Sh>(
+    universe: &'a Universe,
     filename: &str,
-    varname: &str,
+    dsetname: &str,
     array: &ndarray::ArrayBase<S, D>,
     slice: ndarray::SliceInfo<T, D, D>,
     full_shape: Sh,
@@ -39,15 +46,14 @@ where
         full_shape.ndim()
     );
 
-    // Open file
-    let file = if std::path::Path::new(filename).exists() {
-        hdf5::File::append(filename)?
-    } else {
-        hdf5::File::create(filename)?
-    };
+    // Create file with mpi access
+    let comm = universe.world().as_raw();
+    let file = hdf5::FileBuilder::new()
+        .with_fapl(|p| p.mpio(comm, None))
+        .append(filename)?;
 
     //Write dataset
-    let dset = match file.dataset(varname) {
+    let dset = match file.dataset(dsetname) {
         // Overwrite
         Ok(dset) => dset,
         // Create new dataset
@@ -55,7 +61,7 @@ where
             .new_dataset::<A>()
             .no_chunk()
             .shape(full_shape)
-            .create(varname)?,
+            .create(dsetname)?,
     };
     dset.write_slice(array, hdf5::Hyperslab::try_from(slice)?)?;
     Ok(())
@@ -75,9 +81,10 @@ where
 /// # Panics
 /// Mismatch of number of dimensions between array
 /// and `full_shape`.
-pub fn write_slice_complex<A, S, D, T, Sh>(
+pub fn write_mpi_complex<'a, A, S, D, T, Sh>(
+    universe: &'a Universe,
     filename: &str,
-    varname: &str,
+    dsetname: &str,
     array: &ndarray::ArrayBase<S, D>,
     slice: ndarray::SliceInfo<T, D, D>,
     full_shape: Sh,
@@ -91,11 +98,25 @@ where
     ndarray::SliceInfo<T, D, D>: Copy,
 {
     // Write real part
-    let name_re = format!("{}_re", varname);
-    write_slice(filename, &name_re, &array.map(|x| x.re), slice, full_shape)?;
+    let name_re = format!("{}_re", dsetname);
+    write_mpi(
+        universe,
+        filename,
+        &name_re,
+        &array.map(|x| x.re),
+        slice,
+        full_shape,
+    )?;
     // Write imag part
-    let name_im = format!("{}_im", varname);
-    write_slice(filename, &name_im, &array.map(|x| x.im), slice, full_shape)?;
+    let name_im = format!("{}_im", dsetname);
+    write_mpi(
+        universe,
+        filename,
+        &name_im,
+        &array.map(|x| x.im),
+        slice,
+        full_shape,
+    )?;
     Ok(())
 }
 
@@ -106,9 +127,13 @@ where
 ///
 /// # Panics
 /// Panics when `into_dimensionality` fails.
-pub fn read_slice<A, D, T>(
+///
+/// # TODO
+/// Check that slices do not overlap.
+pub fn read_mpi<'a, A, D, T>(
+    universe: &'a Universe,
     filename: &str,
-    varname: &str,
+    dsetname: &str,
     slice: ndarray::SliceInfo<T, D, D>,
 ) -> hdf5::Result<ndarray::Array<A, D>>
 where
@@ -117,10 +142,15 @@ where
     T: AsRef<[ndarray::SliceInfoElem]>,
 {
     // Open file
-    let file = hdf5::File::open(filename)?;
+    let comm = universe.world().as_raw();
+    let file = hdf5::FileBuilder::new()
+        .with_fapl(|p| p.mpio(comm, None))
+        .open(filename)?;
+
     //Read dataset
-    let data = file.dataset(varname)?;
+    let data = file.dataset(dsetname)?;
     let y: ndarray::ArrayD<A> = data.read_slice(slice)?;
+
     // Dyn to static
     let x = y.into_dimensionality::<D>().unwrap();
     Ok(x)
@@ -133,9 +163,13 @@ where
 ///
 /// # Panics
 /// Panics when `into_dimensionality` fails.
-pub fn read_slice_complex<A, D, T>(
+///
+/// # TODO
+/// Check that slices do not overlap.
+pub fn read_mpi_complex<'a, A, D, T>(
+    universe: &'a Universe,
     filename: &str,
-    varname: &str,
+    dsetname: &str,
     slice: ndarray::SliceInfo<T, D, D>,
 ) -> hdf5::Result<ndarray::Array<Complex<A>, D>>
 where
@@ -145,12 +179,12 @@ where
     ndarray::SliceInfo<T, D, D>: Copy,
 {
     // Read real part
-    let name_re = format!("{}_re", varname);
-    let r = read_slice::<A, D, T>(filename, &name_re, slice)?;
+    let name_re = format!("{}_re", dsetname);
+    let r = read_mpi::<A, D, T>(universe, filename, &name_re, slice)?;
 
     // Read imaginary part
-    let name_im = format!("{}_im", varname);
-    let i = read_slice::<A, D, T>(filename, &name_im, slice)?;
+    let name_im = format!("{}_im", dsetname);
+    let i = read_mpi::<A, D, T>(universe, filename, &name_im, slice)?;
 
     // Add to array
     let mut array = ndarray::Array::<Complex<A>, D>::zeros(r.raw_dim());
