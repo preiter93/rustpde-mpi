@@ -4,9 +4,9 @@ use super::{BaseSpace, BaseSpaceMpi, Field2Mpi};
 use crate::io::read_write_hdf5::write_to_hdf5;
 use crate::io::read_write_mpi_hdf5::{read_mpi, write_mpi};
 use crate::io::read_write_mpi_hdf5::{read_mpi_complex, write_mpi_complex};
+use crate::io::traits::ReadWrite;
 use crate::io::Result;
 use num_complex::Complex;
-use crate::io::traits::ReadWrite;
 
 macro_rules! impl_read_write_mpi_fieldmpi2 {
     ($s: ty, $read_s: ident , $write_s: ident) => {
@@ -25,12 +25,13 @@ macro_rules! impl_read_write_mpi_fieldmpi2 {
                 let dcp = &self.space.get_decomp_from_global_shape(shape).x_pencil;
                 let slice = ndarray::s![dcp.st[0]..=dcp.en[0], dcp.st[1]..=dcp.en[1]];
                 // Read in parallel
-                self.vhat_x_pen.assign(&$read_s(
+                let data: ndarray::Array2<$s> = $read_s(
                     &self.universe(),
                     filename,
                     &format!("{}/vhat", dsetname),
                     slice,
-                )?);
+                )?;
+                self.vhat_x_pen.assign(&data);
                 self.backward_mpi();
                 Ok(())
             }

@@ -2,7 +2,10 @@
 //! mpi support, to write in parallel
 #![cfg(feature = "mpio")]
 use crate::mpi::{AsRaw, Universe};
+use hdf5::{Error, Extents, FileBuilder, H5Type, Result, Selection};
+use ndarray::{Array, ArrayBase, Data, Dimension};
 use num_complex::Complex;
+use std::convert::TryInto;
 
 /// Write a slice of an ndarray dataset to an
 /// hdf5 file. Specify the full shape of the
@@ -21,23 +24,22 @@ use num_complex::Complex;
 ///
 /// # TODO
 /// Check that slices do not overlap.
-pub fn write_mpi<'a, A, S, D, T, Sh>(
+pub fn write_mpi<'a, A, S, D, Sh, Sl>(
     universe: &'a Universe,
     filename: &str,
     dsetname: &str,
-    array: &ndarray::ArrayBase<S, D>,
-    slice: ndarray::SliceInfo<T, D, D>,
+    array: &ArrayBase<S, D>,
+    slice: Sl,
     full_shape: Sh,
-) -> hdf5::Result<()>
+) -> Result<()>
 where
-    A: hdf5::H5Type,
-    S: ndarray::Data<Elem = A>,
-    D: ndarray::Dimension,
-    T: AsRef<[ndarray::SliceInfoElem]>,
-    Sh: Into<hdf5::Extents>,
+    A: H5Type,
+    S: Data<Elem = A>,
+    D: Dimension,
+    Sh: Into<Extents>,
+    Sl: TryInto<Selection>,
+    Sl::Error: Into<Error>,
 {
-    use std::convert::TryFrom;
-
     let full_shape = full_shape.into();
     assert!(
         array.ndim() == full_shape.ndim(),
@@ -48,22 +50,28 @@ where
 
     // Create file with mpi access
     let comm = universe.world().as_raw();
-    let file = hdf5::FileBuilder::new()
-        .with_fapl(|p| p.mpio(comm, None))
-        .append(filename)?;
+    // let file = FileBuilder::new()
+    //     .with_fapl(|p| p.mpio(comm, None))
+    //     .create(filename)?;
+    let file = FileBuilder::new().with_fapl(|p| p.mpio(comm, None)).append(filename)?;
 
-    //Write dataset
-    let dset = match file.dataset(dsetname) {
-        // Overwrite
-        Ok(dset) => dset,
-        // Create new dataset
-        std::prelude::v1::Err(..) => file
-            .new_dataset::<A>()
-            .no_chunk()
-            .shape(full_shape)
-            .create(dsetname)?,
-    };
-    dset.write_slice(array, hdf5::Hyperslab::try_from(slice)?)?;
+    // //Write dataset
+    // let dset = file
+    //     .new_dataset::<A>()
+    //     .shape(full_shape)
+    //     .create(dsetname)
+    //     .expect("Failed to create dataset.");
+    // It is better to use `unwrap_or_else` which is lazily evaluated
+    // than `unwrap_or`.
+       let dset = file.dataset(dsetname).unwrap_or_else(|_| {
+           file.new_dataset::<A>()
+               //.no_chunk()
+               .shape(full_shape)
+               .create(dsetname)
+               .expect("Failed to create dataset.")
+       });
+
+    dset.write_slice(array, slice.try_into().map_err(|err| err.into())?)?;
     Ok(())
 }
 
@@ -81,21 +89,21 @@ where
 /// # Panics
 /// Mismatch of number of dimensions between array
 /// and `full_shape`.
-pub fn write_mpi_complex<'a, A, S, D, T, Sh>(
+pub fn write_mpi_complex<'a, A, S, D, Sh, Sl>(
     universe: &'a Universe,
     filename: &str,
     dsetname: &str,
-    array: &ndarray::ArrayBase<S, D>,
-    slice: ndarray::SliceInfo<T, D, D>,
+    array: &ArrayBase<S, D>,
+    slice: Sl,
     full_shape: Sh,
-) -> hdf5::Result<()>
+) -> Result<()>
 where
-    A: hdf5::H5Type + Copy,
-    S: ndarray::Data<Elem = Complex<A>>,
-    D: ndarray::Dimension,
-    T: AsRef<[ndarray::SliceInfoElem]>,
-    Sh: Into<hdf5::Extents> + Copy,
-    ndarray::SliceInfo<T, D, D>: Copy,
+    A: H5Type + Copy,
+    S: Data<Elem = Complex<A>>,
+    D: Dimension,
+    Sh: Into<Extents> + Copy,
+    Sl: TryInto<Selection> + Copy,
+    Sl::Error: Into<Error>,
 {
     // Write real part
     let name_re = format!("{}_re", dsetname);
@@ -130,16 +138,19 @@ where
 ///
 /// # TODO
 /// Check that slices do not overlap.
-pub fn read_mpi<'a, A, D, T>(
+pub fn read_mpi<'a, A, D, S>(
     universe: &'a Universe,
     filename: &str,
     dsetname: &str,
-    slice: ndarray::SliceInfo<T, D, D>,
-) -> hdf5::Result<ndarray::Array<A, D>>
+    slice: S,
+    // slice: ndarray::SliceInfo<T, D, D>,
+) -> Result<Array<A, D>>
 where
-    A: hdf5::H5Type,
-    D: ndarray::Dimension,
-    T: AsRef<[ndarray::SliceInfoElem]>,
+    A: H5Type,
+    D: Dimension,
+    //T: AsRef<[ndarray::SliceInfoElem]>,
+    S: TryInto<Selection>,
+    S::Error: Into<Error>,
 {
     // Open file
     let comm = universe.world().as_raw();
@@ -149,7 +160,7 @@ where
 
     //Read dataset
     let data = file.dataset(dsetname)?;
-    let y: ndarray::ArrayD<A> = data.read_slice(slice)?;
+    let y: ndarray::ArrayD<A> = data.read_slice(slice.try_into().map_err(|err| err.into())?)?;
 
     // Dyn to static
     let x = y.into_dimensionality::<D>().unwrap();
@@ -166,28 +177,28 @@ where
 ///
 /// # TODO
 /// Check that slices do not overlap.
-pub fn read_mpi_complex<'a, A, D, T>(
+pub fn read_mpi_complex<'a, A, D, S>(
     universe: &'a Universe,
     filename: &str,
     dsetname: &str,
-    slice: ndarray::SliceInfo<T, D, D>,
-) -> hdf5::Result<ndarray::Array<Complex<A>, D>>
+    slice: S,
+) -> Result<Array<Complex<A>, D>>
 where
-    A: hdf5::H5Type + Clone + num_traits::Num,
-    D: ndarray::Dimension,
-    T: AsRef<[ndarray::SliceInfoElem]>,
-    ndarray::SliceInfo<T, D, D>: Copy,
+    A: H5Type + Clone + num_traits::Num,
+    D: Dimension,
+    S: TryInto<Selection> + Copy,
+    S::Error: Into<Error>,
 {
     // Read real part
     let name_re = format!("{}_re", dsetname);
-    let r = read_mpi::<A, D, T>(universe, filename, &name_re, slice)?;
+    let r = read_mpi::<A, D, S>(universe, filename, &name_re, slice)?;
 
     // Read imaginary part
     let name_im = format!("{}_im", dsetname);
-    let i = read_mpi::<A, D, T>(universe, filename, &name_im, slice)?;
+    let i = read_mpi::<A, D, S>(universe, filename, &name_im, slice)?;
 
     // Add to array
-    let mut array = ndarray::Array::<Complex<A>, D>::zeros(r.raw_dim());
+    let mut array = Array::<Complex<A>, D>::zeros(r.raw_dim());
     let Complex { mut re, mut im } = array.view_mut().split_complex();
     re.assign(&r);
     im.assign(&i);
