@@ -63,17 +63,6 @@ where
         }
         // Scalars
         if self.nrank() == 0 {
-            // self.ux.backward();
-            // self.uy.backward();
-            // self.temp.backward();
-            // self.pres.backward();
-            // self.ux.write(&filename, "ux")?;
-            // self.uy.write(&filename, "uy")?;
-            // self.temp.write(&filename, "temp")?;
-            // self.pres.write(&filename, "pres")?;
-            // if let Some(field) = &self.tempbc {
-            //     field.write(&filename, "tempbc")?;
-            // }
             // Write scalars
             write_scalar_to_hdf5(&filename, "time", self.time)?;
             for (key, value) in &self.params {

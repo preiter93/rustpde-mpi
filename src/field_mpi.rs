@@ -10,7 +10,6 @@
 //pub mod write;
 pub mod average;
 pub mod io;
-pub mod io_mpi;
 use crate::bases::BaseKind;
 use crate::bases::BaseSpace;
 pub use crate::mpi::{BaseSpaceMpi, Decomp2d, Space2Mpi, Universe};
@@ -18,6 +17,7 @@ use crate::types::FloatNum;
 use ndarray::{prelude::*, Data, DataMut, Ix, ScalarOperand};
 use num_complex::Complex;
 use std::convert::TryInto;
+// pub mod io_mpi;
 
 /// Two dimensional Field (Real in Physical space, Generic in Spectral Space)
 pub type Field2Mpi<T2, S> = FieldBaseMpi<f64, f64, T2, S, 2>;

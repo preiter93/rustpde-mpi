@@ -41,5 +41,6 @@ name = "benchmark_navier"
 harness = false
 
 [features]
-# Read write in parallel
-mpio = ["hdf5/mpio"]
+# Read write in parallel. Do not use at the moment.
+# Parallel writing of hdf5 is not stable enough.
+# mpio = ["hdf5/mpio"]

@@ -1,4 +1,7 @@
 //! Implement io routines for `FieldBaseMpi`
+//!
+//! This part is currently under test.
+//! Writing with MPI can be slow at times. Reason unknown...
 #![cfg(feature = "mpio")]
 use super::{BaseSpace, BaseSpaceMpi, Field2Mpi};
 use crate::io::read_write_hdf5::write_to_hdf5;

@@ -378,12 +378,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "gcc"
-version = "0.3.55"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8f5f3913fa0bfe7ee1fd8248b6b9f42a5af4b9d65ec2dd2c3c26132b950ecfc2"
-
-[[package]]
 name = "getrandom"
 version = "0.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -419,7 +413,6 @@ dependencies = [
  "hdf5-types",
  "lazy_static 1.4.0",
  "libc",
- "mpi-sys",
  "ndarray",
  "parking_lot",
  "paste",
@@ -444,7 +437,6 @@ checksum = "4842d5980dc311a7c8933c7b45534fdae84df5ae7939a0ae8e449a56d4beb3d2"
 dependencies = [
  "libc",
  "libloading 0.7.2",
- "mpi-sys",
  "pkg-config",
  "regex 1.5.4",
  "serde",
@@ -696,17 +688,6 @@ dependencies = [
  "num-complex 0.4.0",
  "once_cell",
  "smallvec",
-]
-
-[[package]]
-name = "mpi-sys"
-version = "0.1.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5d6059465fe3500b0acdef3107ce0fa4635f4672725a74be5353e5e1fc8c4745"
-dependencies = [
- "bindgen",
- "build-probe-mpi",
- "gcc",
 ]
 
 [[package]]
