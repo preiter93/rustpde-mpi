@@ -6,6 +6,7 @@
 ## Dependencies
 - cargo >= v1.49
 - `hdf5` (sudo apt-get install -y libhdf5-dev)
+- `clang` (only for parallel simulations, see [MPI](#mpi).)
 
 This version of `rustpde` contains serial and
 mpi-parallel examples of fluid simulations using the spectral method.
@@ -15,51 +16,50 @@ mpi-parallel examples of fluid simulations using the spectral method.
 The mpi crate relies on a installed version of libclang. Also
 make sure to add the clang bin folder to the path variable, i.e.
 for example
-``` ignore
-export PATH="${INSTALL_DIR}/llvm-project/build/bin:$PATH"
-```rust
+
+- `export PATH="${INSTALL_DIR}/llvm-project/build/bin:$PATH"`
 
 The correct mpi installation can be tricky at times. If you want
 to use this library without mpi, you can disable of the default `mpi` feature.
 Note that, if default features are turned off, do not forget to
 specify which openblas backend you want to use. For example:
-``` ignore
-cargo build --release --no-default-features --features openblas-static
-```
+
+- `cargo build --release --no-default-features --features openblas-static`
 
 ## `OpenBlas`
 
-By default `rustpde` uses ndarray's `openblas-static` backend.
-This increases compilation time. To use a systems `OpenBlas`
+By default `rustpde` uses ndarray's `openblas-static` backend,
+which is costly for compilation. To use a systems `OpenBlas`
 installation, disable default features, and use the `openblas-system`
 feature. Make sure to not forget to explicity use the `mpi` feature
 in this case, .i.e.
-``` ignore
-cargo build --release --no-default-features --features mpi
-```rust
+- `cargo build --release --no-default-features --features mpi`
+
 Make sure the `OpenBlas` library is linked correctly in the library path,
 i.e.
-```ignore
-export LIBRARY_PATH="${INSTALL_DIR}/OpenBLAS/lib"
-```
+
+- `export LIBRARY_PATH="${INSTALL_DIR}/OpenBLAS/lib"`
 
 Openblas multithreading conflicts with internal multithreading.
 Turn it off for better performance:
-```rust
-export OPENBLAS_NUM_THREADS=1
-```
+- `export OPENBLAS_NUM_THREADS=1`
 
+## `Hdf5`
+Install Hdf5 and link as follows:
+
+- `export HDF5_DIR="${INSTALL_DIR}/hdf5-xx/" `
+- ` export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:${HDF5_DIR}/lib"`
 
 ## Details
 
 Currently `rustpde` implements transforms from physical to spectral space
 for the following basis functions:
-- `Chebyshev` (Orthonormal), see [`chebyshev()`]
-- `ChebDirichlet` (Composite), see [`cheb_dirichlet()`]
-- `ChebNeumann` (Composite), see [`cheb_neumann()`]
-- `ChebDirichletNeumann` (Composite), see [`cheb_dirichlet_neumann()`]
-- `FourierR2c` (Orthonormal), see [`fourier_r2c()`]
-- `FourierC2c` (Orthonormal), see [`fourier_c2c()`]
+- `Chebyshev` (Orthonormal), see [`bases::chebyshev()`]
+- `ChebDirichlet` (Composite), see [`bases::cheb_dirichlet()`]
+- `ChebNeumann` (Composite), see [`bases::cheb_neumann()`]
+- `ChebDirichletNeumann` (Composite), see [`bases::cheb_dirichlet_neumann()`]
+- `FourierR2c` (Orthonormal), see [`bases::fourier_r2c()`]
+- `FourierC2c` (Orthonormal), see [`bases::fourier_c2c()`]
 
 Composite basis combine several basis functions of its parent space to
 satisfy the boundary conditions, i.e. Galerkin method.
@@ -67,9 +67,7 @@ satisfy the boundary conditions, i.e. Galerkin method.
 ### Implemented solver
 
 - `2-D Rayleigh Benard Convection: Direct numerical simulation`,
-see [`navier::navier`]
-- `2-D Rayleigh Benard Convection: Steady state solver`,
-see [`navier::navier_adjoint`]
+see [`navier_stokes::Navier2D`] or  [`navier_stokes_mpi::Navier2DMpi`]
 
 ## Example
 Solve 2-D Rayleigh Benard Convection ( Run with `cargo mpirun --np 2 --bin rustpde` )
