@@ -8,14 +8,14 @@ description = "N-dimensional spectral transforms of various basis functions"
 [dependencies]
 ndarray = { version = "0.15", features=["rayon"]}
 ndarray-rand = "0.14"
-ndarray-linalg = { version = "0.14", features = ["openblas-static"] }
+ndarray-linalg = "0.14"
 enum_dispatch = "0.3.7"
 num-traits = "0.2.12"
 num-complex = "0.4"
 # hdf5-interface = { git = "https://github.com/preiter93/hdf5-interface", version = "0.1.0"}
 hdf5 = {version = "0.8"}
 # funspace = { git = "https://github.com/preiter93/funspace-mpi", tag = "v0.2.5", features = ["mpi"] }
-funspace = { path = "funspace-mpi",  features = ["mpi"] }
+funspace = { path = "funspace-mpi"}
 
 [dev-dependencies]
 criterion = { version = "0.3", features = ["html_reports"] }
@@ -32,15 +32,20 @@ harness = false
 name = "benchmark_to_ortho"
 harness = false
 
-#[[bench]]
-#name = "benchmark_diffusion"
-#harness = false
-
 [[bench]]
 name = "benchmark_navier"
 harness = false
 
 [features]
+default = ["mpi", "openblas-static"]
+
+# Use mpi crate for parrallel simulations. This feature is enabled by default
+mpi = ["funspace/mpi"]
+
+# Specify openblas backend. Statis is the default. See library description.
+openblas-static = ["ndarray-linalg/openblas-static"]
+openblas-system = ["ndarray-linalg/openblas-system"]
+
 # Read write in parallel. Do not use at the moment.
 # Parallel writing of hdf5 is not stable enough.
 # mpio = ["hdf5/mpio"]

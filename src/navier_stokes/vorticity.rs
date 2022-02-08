@@ -5,7 +5,7 @@
 //! ```ignore
 //! fn main() {
 //!    use std::path::PathBuf;
-//!    use rustpde::navier::vorticity::vorticity_from_file;
+//!    use rustpde::navier_stokes::vorticity::vorticity_from_file;
 //!
 //!    let root = "data/";
 //!    let files: Vec<PathBuf> = std::fs::read_dir(root)
@@ -18,6 +18,7 @@
 //!    for f in files.iter() {
 //!        let fname = f.to_str().unwrap();
 //!        vorticity_from_file(&fname).unwrap();
+//!    }
 //! }
 //! ```
 #![allow(clippy::similar_names)]

@@ -7,31 +7,62 @@
 - cargo >= v1.49
 - `hdf5` (sudo apt-get install -y libhdf5-dev)
 
-This is the mpi version of `rustpde`. The following additional
-dependencies are required:
+This version of `rustpde` contains serial and
+mpi-parallel examples of fluid simulations using the spectral method.
 
-- mpi installation
-- libclang
+## `MPI`
 
-## Important
+The mpi crate relies on a installed version of libclang. Also
+make sure to add the clang bin folder to the path variable, i.e.
+for example
+``` ignore
+export PATH="${INSTALL_DIR}/llvm-project/build/bin:$PATH"
+```rust
+
+The correct mpi installation can be tricky at times. If you want
+to use this library without mpi, you can disable of the default `mpi` feature.
+Note that, if default features are turned off, do not forget to
+specify which openblas backend you want to use. For example:
+``` ignore
+cargo build --release --no-default-features --features openblas-static
+```
+
+## `OpenBlas`
+
+By default `rustpde` uses ndarray's `openblas-static` backend.
+This increases compilation time. To use a systems `OpenBlas`
+installation, disable default features, and use the `openblas-system`
+feature. Make sure to not forget to explicity use the `mpi` feature
+in this case, .i.e.
+``` ignore
+cargo build --release --no-default-features --features mpi
+```rust
+Make sure the `OpenBlas` library is linked correctly in the library path,
+i.e.
+```ignore
+export LIBRARY_PATH="${INSTALL_DIR}/OpenBLAS/lib"
+```
 
 Openblas multithreading conflicts with internal multithreading.
 Turn it off for better performance:
+```rust
+export OPENBLAS_NUM_THREADS=1
+```
+
 
 ## Details
-
-This library is intended for simulation softwares which solve the
-partial differential equations using spectral methods.
 
 Currently `rustpde` implements transforms from physical to spectral space
 for the following basis functions:
 - `Chebyshev` (Orthonormal), see [`chebyshev()`]
 - `ChebDirichlet` (Composite), see [`cheb_dirichlet()`]
 - `ChebNeumann` (Composite), see [`cheb_neumann()`]
+- `ChebDirichletNeumann` (Composite), see [`cheb_dirichlet_neumann()`]
 - `FourierR2c` (Orthonormal), see [`fourier_r2c()`]
+- `FourierC2c` (Orthonormal), see [`fourier_c2c()`]
 
 Composite basis combine several basis functions of its parent space to
-satisfy the needed boundary conditions, this is often called a Galerkin method.
+satisfy the boundary conditions, i.e. Galerkin method.
 
 ### Implemented solver
 
@@ -88,7 +119,7 @@ fn main() {
 
 ### Postprocess the output
 
-`rustpde` contains a `python` folder with some scripts.
+`rustpde` contains some python scripts for postprocessing.
 If you have run the above example and specified
 to save snapshots, you will see `hdf5` files in the `data` folder.
 

@@ -1,7 +1,9 @@
 //! Calculate gradient of final energy with respect to initial field
 //! using finite differences, i.e. perturb every grid point subsequently.
 //! This is much more expensive, than adjoint based gradient computation
-//! [`crate::lnse_adj_grad::grad_adjoint()`] and should only be used for testing.
+//! and should only be used for testing.
+//!
+//! See `examples/navier_lnse_test_gradient.rs`
 use super::functions::energy;
 use super::Navier2DLnse;
 use crate::field::BaseSpace;

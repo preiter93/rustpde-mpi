@@ -4,39 +4,68 @@
 //! # Dependencies
 //! - cargo >= v1.49
 //! - `hdf5` (sudo apt-get install -y libhdf5-dev)
+//! - `clang` (only for parallel simulations, see [MPI](#mpi).)
 //!
-//! This is the mpi version of `rustpde`. The following additional
-//! dependencies are required:
+//! This version of `rustpde` contains serial and
+//! mpi-parallel examples of fluid simulations using the spectral method.
 //!
-//! - mpi installation
-//! - libclang
+//! # `MPI`
 //!
-//! # Important
+//! The mpi crate relies on a installed version of libclang. Also
+//! make sure to add the clang bin folder to the path variable, i.e.
+//! for example
+//!
+//! - `export PATH="${INSTALL_DIR}/llvm-project/build/bin:$PATH"`
+//!
+//! The correct mpi installation can be tricky at times. If you want
+//! to use this library without mpi, you can disable of the default `mpi` feature.
+//! Note that, if default features are turned off, do not forget to
+//! specify which openblas backend you want to use. For example:
+//!
+//! - `cargo build --release --no-default-features --features openblas-static`
+//!
+//! # `OpenBlas`
+//!
+//! By default `rustpde` uses ndarray's `openblas-static` backend,
+//! which is costly for compilation. To use a systems `OpenBlas`
+//! installation, disable default features, and use the `openblas-system`
+//! feature. Make sure to not forget to explicity use the `mpi` feature
+//! in this case, .i.e.
+//! - `cargo build --release --no-default-features --features mpi`
+//!
+//! Make sure the `OpenBlas` library is linked correctly in the library path,
+//! i.e.
+//!
+//! - `export LIBRARY_PATH="${INSTALL_DIR}/OpenBLAS/lib"`
 //!
 //! Openblas multithreading conflicts with internal multithreading.
 //! Turn it off for better performance:
+//! - `export OPENBLAS_NUM_THREADS=1`
+//!
+//! # `Hdf5`
+//! Install Hdf5 and link as follows:
+//!
+//! - `export HDF5_DIR="${INSTALL_DIR}/hdf5-xx/" `
+//! - ` export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:${HDF5_DIR}/lib"`
 //!
 //! # Details
 //!
-//! This library is intended for simulation softwares which solve the
-//! partial differential equations using spectral methods.
-//!
 //! Currently `rustpde` implements transforms from physical to spectral space
 //! for the following basis functions:
-//! - `Chebyshev` (Orthonormal), see [`chebyshev()`]
-//! - `ChebDirichlet` (Composite), see [`cheb_dirichlet()`]
-//! - `ChebNeumann` (Composite), see [`cheb_neumann()`]
-//! - `FourierR2c` (Orthonormal), see [`fourier_r2c()`]
+//! - `Chebyshev` (Orthonormal), see [`bases::chebyshev()`]
+//! - `ChebDirichlet` (Composite), see [`bases::cheb_dirichlet()`]
+//! - `ChebNeumann` (Composite), see [`bases::cheb_neumann()`]
+//! - `ChebDirichletNeumann` (Composite), see [`bases::cheb_dirichlet_neumann()`]
+//! - `FourierR2c` (Orthonormal), see [`bases::fourier_r2c()`]
+//! - `FourierC2c` (Orthonormal), see [`bases::fourier_c2c()`]
 //!
 //! Composite basis combine several basis functions of its parent space to
-//! satisfy the needed boundary conditions, this is often called a Galerkin method.
+//! satisfy the boundary conditions, i.e. Galerkin method.
 //!
 //! ## Implemented solver
 //!
 //! - `2-D Rayleigh Benard Convection: Direct numerical simulation`,
-//! see [`navier::navier`]
-//! - `2-D Rayleigh Benard Convection: Steady state solver`,
-//! see [`navier::navier_adjoint`]
+//! see [`navier_stokes::Navier2D`] or  [`navier_stokes_mpi::Navier2DMpi`]
 //!
 //! # Example
 //! Solve 2-D Rayleigh Benard Convection ( Run with `cargo mpirun --np 2 --bin rustpde` )
@@ -86,7 +115,7 @@
 //!
 //! ## Postprocess the output
 //!
-//! `rustpde` contains a `python` folder with some scripts.
+//! `rustpde` contains some python scripts for postprocessing.
 //! If you have run the above example and specified
 //! to save snapshots, you will see `hdf5` files in the `data` folder.
 //!
@@ -124,13 +153,17 @@
 extern crate enum_dispatch;
 pub mod bases;
 pub mod field;
+#[cfg(feature = "mpi")]
 pub mod field_mpi;
 pub mod io;
+#[cfg(feature = "mpi")]
 pub mod mpi;
 pub mod navier_stokes;
 pub mod navier_stokes_lnse;
+#[cfg(feature = "mpi")]
 pub mod navier_stokes_mpi;
 pub mod solver;
+#[cfg(feature = "mpi")]
 pub mod solver_mpi;
 pub mod types;
 
