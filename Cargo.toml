@@ -45,6 +45,9 @@ mpi = ["funspace/mpi"]
 # Specify openblas backend. Statis is the default. See library description.
 openblas-static = ["ndarray-linalg/openblas-static"]
 openblas-system = ["ndarray-linalg/openblas-system"]
+intel-mkl-static = ["ndarray-linalg/intel-mkl-static"]
+intel-mkl-system = ["ndarray-linalg/intel-mkl-system"]
+
 
 # Read write in parallel. Do not use at the moment.
 # Parallel writing of hdf5 is not stable enough.
