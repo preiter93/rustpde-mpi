@@ -140,7 +140,7 @@ where
         let en = target.as_ref().map_or_else(
             || {
                 let (velx, vely, temp) = (&self.velx.v, &self.vely.v, &self.temp.v);
-                l2_norm(&velx, &velx, &vely, &vely, &temp, &temp, beta1, beta2)
+                l2_norm(velx, velx, vely, vely, temp, temp, beta1, beta2)
             },
             |t| {
                 let (velx, vely, temp) = (
@@ -148,7 +148,7 @@ where
                     &(&self.vely.v - &t.vely.v),
                     &(&self.temp.v - &t.temp.v),
                 );
-                l2_norm(&velx, &velx, &vely, &vely, &temp, &temp, beta1, beta2)
+                l2_norm(velx, velx, vely, vely, temp, temp, beta1, beta2)
             },
         );
 
@@ -198,9 +198,9 @@ where
         grad_v.forward();
         grad_t.forward();
         let filename = "data/grad_adjoint.h5";
-        grad_u.write_unwrap(&filename, "ux");
-        grad_v.write_unwrap(&filename, "uy");
-        grad_t.write_unwrap(&filename, "temp");
+        grad_u.write_unwrap(filename, "ux");
+        grad_v.write_unwrap(filename, "uy");
+        grad_t.write_unwrap(filename, "temp");
         (fun_val, (grad_u, grad_v, grad_t))
     }
 

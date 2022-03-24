@@ -101,7 +101,7 @@ where
         let vhat_x_pen = space.ndarray_spectral_x_pen();
         let vhat_y_pen = space.ndarray_spectral_y_pen();
         let x = space.coords();
-        let dx = Self::get_dx(&space.coords(), Self::is_periodic(&space));
+        let dx = Self::get_dx(&space.coords(), Self::is_periodic(space));
         Self {
             ndim: N,
             space: space.clone(),

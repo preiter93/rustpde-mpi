@@ -135,8 +135,8 @@ where
     S: BaseSpace<A, 2, Physical = A, Spectral = T2>,
 {
     let two = A::one() + A::one();
-    let velx_v = field.space.backward(&velx);
-    let vely_v = field.space.backward(&vely);
+    let velx_v = field.space.backward(velx);
+    let vely_v = field.space.backward(vely);
     let ekin = &velx_v.mapv(|x| x.powi(2)) + &vely_v.mapv(|x| x.powi(2));
     field.v.assign(&ekin.mapv(A::sqrt));
     field.v *= two * scale[1] / nu;

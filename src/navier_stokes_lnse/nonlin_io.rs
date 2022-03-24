@@ -19,11 +19,11 @@ where
     /// # Errors
     /// Failed to read
     pub fn read(&mut self, filename: &str) -> Result<()> {
-        self.velx.read(&filename, "ux")?;
-        self.vely.read(&filename, "uy")?;
-        self.temp.read(&filename, "temp")?;
-        self.pres.read(&filename, "pres")?;
-        self.time = read_scalar_from_hdf5::<f64>(&filename, "time")?;
+        self.velx.read(filename, "ux")?;
+        self.vely.read(filename, "uy")?;
+        self.temp.read(filename, "temp")?;
+        self.pres.read(filename, "pres")?;
+        self.time = read_scalar_from_hdf5::<f64>(filename, "time")?;
         println!(" <== {:?}", filename);
         Ok(())
     }
@@ -46,17 +46,17 @@ where
         self.vely.backward();
         self.temp.backward();
         self.pres.backward();
-        self.velx.write(&filename, "ux")?;
-        self.vely.write(&filename, "uy")?;
-        self.temp.write(&filename, "temp")?;
-        self.pres.write(&filename, "pres")?;
-        self.mean.velx.write(&filename, "ux_base")?;
-        self.mean.vely.write(&filename, "uy_base")?;
-        self.mean.temp.write(&filename, "temp_base")?;
+        self.velx.write(filename, "ux")?;
+        self.vely.write(filename, "uy")?;
+        self.temp.write(filename, "temp")?;
+        self.pres.write(filename, "pres")?;
+        self.mean.velx.write(filename, "ux_base")?;
+        self.mean.vely.write(filename, "uy_base")?;
+        self.mean.temp.write(filename, "temp_base")?;
         // Write scalars
-        write_scalar_to_hdf5(&filename, "time", self.time)?;
+        write_scalar_to_hdf5(filename, "time", self.time)?;
         for (key, value) in &self.params {
-            write_scalar_to_hdf5(&filename, key, *value)?;
+            write_scalar_to_hdf5(filename, key, *value)?;
         }
         Ok(())
     }
@@ -96,7 +96,7 @@ where
         // Write flow field
         let out_intervall = write_flow_intervall.map_or(OUTPUT_INTERVALL, |x| x);
         if (self.time + self.dt / 2.) % out_intervall < self.dt {
-            self.write_unwrap(&flow_name);
+            self.write_unwrap(flow_name);
         }
 
         // I/O

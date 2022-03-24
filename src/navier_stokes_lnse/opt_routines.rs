@@ -26,9 +26,10 @@ pub fn steepest_descent_energy_constrained(
     beta2: f64,
     alpha: f64,
 ) {
-    if alpha > 2. * std::f64::consts::PI {
-        panic!("alpha must be less than 2 pi")
-    }
+    assert!(
+        (alpha <= 2. * std::f64::consts::PI),
+        "alpha must be less than 2 pi"
+    );
     let n = velx_0.len() as f64;
     let e0 = l2_norm(velx_0, velx_0, vely_0, vely_0, temp_0, temp_0, beta1, beta2) / n;
     let eg = l2_norm(

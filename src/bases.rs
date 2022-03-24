@@ -9,10 +9,8 @@
 //! - `FourierC2c` (Orthonormal), see [`fourier_c2c()`]
 //! - `FourierR2c` (Orthonormal), see [`fourier_r2c()`]
 pub use funspace::cheb_dirichlet;
-pub use funspace::cheb_dirichlet_bc;
 pub use funspace::cheb_dirichlet_neumann;
 pub use funspace::cheb_neumann;
-pub use funspace::cheb_neumann_bc;
 pub use funspace::chebyshev;
 pub use funspace::fourier_c2c;
 pub use funspace::fourier_r2c;

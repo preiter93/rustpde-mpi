@@ -96,10 +96,10 @@ where
         self.t_avg
             .vhat
             .assign(&((&self.t_avg.vhat * weight + that) / (weight + 1.)));
-        self.ux_avg.vhat.assign(&uxhat);
-        self.uy_avg.vhat.assign(&uyhat);
+        self.ux_avg.vhat.assign(uxhat);
+        self.uy_avg.vhat.assign(uyhat);
         let ka = self.params.get("ka").unwrap();
-        nusselt(&mut self.field, &that, &uyhat, *ka, &self.scale);
+        nusselt(&mut self.field, that, uyhat, *ka, &self.scale);
         self.nusselt.vhat.assign(&self.field.vhat);
         // Update time info
         self.num_save += 1;
@@ -118,12 +118,12 @@ where
     /// Failed to read
     pub fn read(&mut self, filename: &str) -> Result<()> {
         for field in &mut self.member_list() {
-            field.0.read(&filename, field.1)?;
+            field.0.read(filename, field.1)?;
         }
         // Read scalars
-        self.tot_time = read_scalar_from_hdf5::<f64>(&filename, "tot_time")?;
-        self.avg_time = read_scalar_from_hdf5::<f64>(&filename, "avg_time")?;
-        self.num_save = read_scalar_from_hdf5::<usize>(&filename, "num_save")?;
+        self.tot_time = read_scalar_from_hdf5::<f64>(filename, "tot_time")?;
+        self.avg_time = read_scalar_from_hdf5::<f64>(filename, "avg_time")?;
+        self.num_save = read_scalar_from_hdf5::<usize>(filename, "num_save")?;
         println!(" <== {:?}", filename);
         Ok(())
     }
@@ -145,15 +145,15 @@ where
         // Write fields
         for field in &mut self.member_list() {
             field.0.backward();
-            field.0.write(&filename, field.1)?;
+            field.0.write(filename, field.1)?;
         }
         // Write scalars
-        write_scalar_to_hdf5(&filename, "tot_time", self.tot_time)?;
-        write_scalar_to_hdf5(&filename, "avg_time", self.avg_time)?;
-        write_scalar_to_hdf5(&filename, "num_save", self.num_save)?;
+        write_scalar_to_hdf5(filename, "tot_time", self.tot_time)?;
+        write_scalar_to_hdf5(filename, "avg_time", self.avg_time)?;
+        write_scalar_to_hdf5(filename, "num_save", self.num_save)?;
         // Write scalars
         for (key, value) in &self.params {
-            write_scalar_to_hdf5(&filename, key, *value)?;
+            write_scalar_to_hdf5(filename, key, *value)?;
         }
         Ok(())
     }
@@ -189,11 +189,11 @@ fn nusselt<T, S>(
     T: ndarray::LinalgScalar + std::ops::Mul<f64, Output = T> + std::ops::Div<f64, Output = T>,
 {
     // uy
-    field.vhat.assign(&uyhat);
+    field.vhat.assign(uyhat);
     field.backward();
     let uy_v = field.v.clone();
     // temp
-    field.vhat.assign(&that);
+    field.vhat.assign(that);
     field.backward();
     // uy * T
     let uy_temp = &field.v * &uy_v;

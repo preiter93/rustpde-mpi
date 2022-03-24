@@ -38,6 +38,8 @@
 //!
 //! - `export LIBRARY_PATH="${INSTALL_DIR}/OpenBLAS/lib"`
 //!
+//! IT IS NOT `LD_LIBRARY_PATH`!
+//!
 //! Openblas multithreading conflicts with internal multithreading.
 //! Turn it off for better performance:
 //! - `export OPENBLAS_NUM_THREADS=1`
@@ -81,12 +83,10 @@
 //!     let (nx, ny) = (65, 65);
 //!     let ra = 1e4;
 //!     let pr = 1.;
-//!     let adiabatic = true;
 //!     let aspect = 1.0;
 //!     let dt = 0.01;
-//!     let mut navier = Navier2DMpi::new(&universe, nx, ny, ra, pr, dt, aspect, adiabatic);
+//!     let mut navier = Navier2DMpi::new_confined(&universe, nx, ny, ra, pr, dt, aspect, "rbc");
 //!     navier.write_intervall = Some(1.0);
-//!     navier.random_disturbance(1e-4);
 //!     integrate(&mut navier, 10., Some(0.1));
 //! }
 //! ```
@@ -103,12 +103,10 @@
 //!     let (nx, ny) = (128, 65);
 //!     let ra = 1e4;
 //!     let pr = 1.;
-//!     let adiabatic = true;
 //!     let aspect = 1.0;
 //!     let dt = 0.01;
-//!     let mut navier = Navier2DMpi::new_periodic(&universe, nx, ny, ra, pr, dt, aspect);
+//!     let mut navier = Navier2DMpi::new_periodic(&universe, nx, ny, ra, pr, dt, aspect, "rbc");
 //!     navier.write_intervall = Some(1.0);
-//!     navier.random_disturbance(1e-4);
 //!     integrate(&mut navier, 10., Some(0.1));
 //! }
 //! ```

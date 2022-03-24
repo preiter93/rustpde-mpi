@@ -243,7 +243,7 @@ where
     /// $$
     /// pseu: pseudo pressure ( in code it is pres\[1\] )
     pub(crate) fn solve_pres(&mut self, f: &Array2<T>) {
-        self.solver_pres.solve_par(&f, &mut self.pseu.vhat, 0);
+        self.solver_pres.solve_par(f, &mut self.pseu.vhat, 0);
         // Remove singularity
         self.pseu.vhat[[0, 0]] = T::zero();
     }
@@ -278,7 +278,7 @@ where
 
         conv -= &conv_term(temp_adj, &self.temp, space, [1, 0], scale);
         if let Some(field) = &self.tempbc {
-            conv -= &conv_term(temp_adj, &field, space, [1, 0], scale);
+            conv -= &conv_term(temp_adj, field, space, [1, 0], scale);
         }
         // -> spectral space
         self.field.v.assign(&conv);
@@ -309,7 +309,7 @@ where
         conv += &conv_term(vely, &self.vely_adj, space, [0, 1], scale);
         conv -= &conv_term(temp_adj, &self.temp, space, [0, 1], scale);
         if let Some(field) = &self.tempbc {
-            conv -= &conv_term(temp_adj, &field, space, [0, 1], scale);
+            conv -= &conv_term(temp_adj, field, space, [0, 1], scale);
         }
         // -> spectral space
         self.field.v.assign(&conv);

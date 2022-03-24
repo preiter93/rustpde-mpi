@@ -1,6 +1,6 @@
 [package]
 name = "rustpde"
-version = "0.2.7"
+version = "0.2.8"
 authors = ["preiter <phil.reiter93@gmail.com>"]
 edition = "2018"
 description = "N-dimensional spectral transforms of various basis functions"
@@ -37,7 +37,7 @@ name = "benchmark_navier"
 harness = false
 
 [features]
-default = ["mpi", "openblas-static"]
+default = ["mpi", "openblas-system"]
 
 # Use mpi crate for parrallel simulations. This feature is enabled by default
 mpi = ["funspace/mpi"]

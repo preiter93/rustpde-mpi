@@ -33,6 +33,7 @@ use crate::mpi::{BaseSpaceMpi, Equivalence};
 use crate::solver::utils::vec_to_array;
 use crate::solver::{FdmaTensor, MatVec, MatVecFdma, Solve, SolveReturn, SolverScalar};
 use ndarray::{s, Array2, ArrayBase, Ix2, Zip};
+use std::convert::Into;
 use std::ops::{Add, Div, Mul};
 
 /// Container for Poisson Solver
@@ -161,12 +162,12 @@ where
         let solver = &self.solver;
         // Step 1: Forward Transform rhs along x
         if let Some(p) = &solver.fwd[0] {
-            let p_cast: Array2<A> = p.mapv(|x| x.into());
+            let p_cast: Array2<A> = p.mapv(Into::into);
             output.assign(&p_cast.dot(&buf_x_pen));
         } else {
             output.assign(&buf_x_pen);
         }
-        dcp.transpose_x_to_y(&output, &mut buf_y_pen);
+        dcp.transpose_x_to_y(output, &mut buf_y_pen);
         let lam_local = solver.lam[0].slice(s![dcp.y_pencil.st[0]..=dcp.y_pencil.en[0]]);
         // Step 2: Solve along y (but iterate over all lanes in x)
         Zip::from(buf_y_pen.outer_iter_mut())
@@ -181,7 +182,7 @@ where
         // Step 3: Backward Transform solution along x
         dcp.transpose_y_to_x(&buf_y_pen, output);
         if let Some(q) = &solver.bwd[0] {
-            let q_cast: Array2<A> = q.mapv(|x| x.into());
+            let q_cast: Array2<A> = q.mapv(Into::into);
             output.assign(&q_cast.dot(output));
         }
     }

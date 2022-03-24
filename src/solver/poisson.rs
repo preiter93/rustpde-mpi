@@ -26,6 +26,7 @@ use crate::solver::utils::vec_to_array;
 use crate::solver::{FdmaTensor, Solve, SolveReturn};
 use ndarray::prelude::*;
 use ndarray::Zip;
+use std::convert::Into;
 use std::ops::{Add, Div, Mul};
 
 /// Container for Poisson Solver
@@ -166,7 +167,7 @@ where
 
         // Step 1: Forward Transform rhs along x
         if let Some(p) = &self.solver.fwd[0] {
-            let p_cast: Array2<A> = p.mapv(|x| x.into());
+            let p_cast: Array2<A> = p.mapv(Into::into);
             output.assign(&p_cast.dot(&rhs));
         } else {
             output.assign(&rhs);
@@ -184,7 +185,7 @@ where
 
         // Step 3: Backward Transform solution along x
         if let Some(q) = &self.solver.bwd[0] {
-            let q_cast: Array2<A> = q.mapv(|x| x.into());
+            let q_cast: Array2<A> = q.mapv(Into::into);
             output.assign(&q_cast.dot(output));
         }
     }
@@ -209,7 +210,7 @@ where
 
         // Step 1: Forward Transform rhs along x
         if let Some(p) = &self.solver.fwd[0] {
-            let p_cast: Array2<A> = p.mapv(|x| x.into());
+            let p_cast: Array2<A> = p.mapv(Into::into);
             output.assign(&p_cast.dot(&rhs));
         } else {
             output.assign(&rhs);
@@ -227,7 +228,7 @@ where
 
         // Step 3: Backward Transform solution along x
         if let Some(q) = &self.solver.bwd[0] {
-            let q_cast: Array2<A> = q.mapv(|x| x.into());
+            let q_cast: Array2<A> = q.mapv(Into::into);
             output.assign(&q_cast.dot(output));
         }
     }

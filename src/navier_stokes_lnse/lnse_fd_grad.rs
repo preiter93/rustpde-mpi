@@ -150,9 +150,9 @@ where
         grad_v.forward();
         grad_t.forward();
         let filename = "data/grad_fd.h5";
-        grad_u.write_unwrap(&filename, "ux");
-        grad_v.write_unwrap(&filename, "uy");
-        grad_t.write_unwrap(&filename, "temp");
+        grad_u.write_unwrap(filename, "ux");
+        grad_v.write_unwrap(filename, "uy");
+        grad_t.write_unwrap(filename, "temp");
         (grad_u, grad_v, grad_t)
     }
 }

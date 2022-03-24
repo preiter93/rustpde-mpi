@@ -11,6 +11,7 @@ use super::Solve;
 use super::SolverScalar;
 use ndarray::{Array1, Array2, ArrayBase, Ix1, Ix2, Zip};
 use ndarray::{Data, DataMut};
+use std::convert::Into;
 use std::ops::{Add, Div, Mul};
 
 /// Tensor solver handles non-seperable multidimensional
@@ -170,9 +171,12 @@ where
         output: &mut ArrayBase<S2, Ix1>,
         axis: usize,
     ) {
-        if input.shape()[0] != self.n {
-            panic!("Dimension mismatch! Got {} vs. {}.", input.len(), self.n);
-        }
+        assert!(
+            !(input.shape()[0] != self.n),
+            "Dimension mismatch! Got {} vs. {}.",
+            input.len(),
+            self.n
+        );
         self.fdma[0].solve(input, output, axis);
     }
 
@@ -182,9 +186,12 @@ where
         output: &mut ArrayBase<S2, Ix1>,
         axis: usize,
     ) {
-        if input.shape()[0] != self.n {
-            panic!("Dimension mismatch! Got {} vs. {}.", input.len(), self.n);
-        }
+        assert!(
+            !(input.shape()[0] != self.n),
+            "Dimension mismatch! Got {} vs. {}.",
+            input.len(),
+            self.n
+        );
         self.fdma[0].solve_par(input, output, axis);
     }
 }
@@ -206,19 +213,18 @@ where
         output: &mut ArrayBase<S2, Ix2>,
         _axis: usize,
     ) {
-        if input.shape()[0] != self.lam[0].len() || input.shape()[1] != self.n {
-            panic!(
-                "Dimension mismatch in Tensor! Got {} vs. {} (0) and {} vs. {} (1).",
-                input.shape()[0],
-                self.lam[0].len(),
-                input.shape()[1],
-                self.n
-            );
-        }
+        assert!(
+            !(input.shape()[0] != self.lam[0].len() || input.shape()[1] != self.n),
+            "Dimension mismatch in Tensor! Got {} vs. {} (0) and {} vs. {} (1).",
+            input.shape()[0],
+            self.lam[0].len(),
+            input.shape()[1],
+            self.n
+        );
 
         // Step 1: Forward Transform rhs along x
         if let Some(p) = &self.fwd[0] {
-            let p_cast: Array2<S> = p.mapv(|x| x.into());
+            let p_cast: Array2<S> = p.mapv(Into::into);
             output.assign(&p_cast.dot(input));
         } else {
             output.assign(input);
@@ -236,7 +242,7 @@ where
 
         // Step 3: Backward Transform solution along x
         if let Some(q) = &self.bwd[0] {
-            let q_cast: Array2<S> = q.mapv(|x| x.into());
+            let q_cast: Array2<S> = q.mapv(Into::into);
             output.assign(&q_cast.dot(output));
         }
     }
@@ -247,19 +253,18 @@ where
         output: &mut ArrayBase<S2, Ix2>,
         _axis: usize,
     ) {
-        if input.shape()[0] != self.lam[0].len() || input.shape()[1] != self.n {
-            panic!(
-                "Dimension mismatch in Tensor! Got {} vs. {} (0) and {} vs. {} (1).",
-                input.shape()[0],
-                self.lam[0].len(),
-                input.shape()[1],
-                self.n
-            );
-        }
+        assert!(
+            !(input.shape()[0] != self.lam[0].len() || input.shape()[1] != self.n),
+            "Dimension mismatch in Tensor! Got {} vs. {} (0) and {} vs. {} (1).",
+            input.shape()[0],
+            self.lam[0].len(),
+            input.shape()[1],
+            self.n
+        );
 
         // Step 1: Forward Transform rhs along x
         if let Some(p) = &self.fwd[0] {
-            let p_cast: Array2<S> = p.mapv(|x| x.into());
+            let p_cast: Array2<S> = p.mapv(Into::into);
             output.assign(&p_cast.dot(input));
         } else {
             output.assign(input);
@@ -277,7 +282,7 @@ where
 
         // Step 3: Backward Transform solution along x
         if let Some(q) = &self.bwd[0] {
-            let q_cast: Array2<S> = q.mapv(|x| x.into());
+            let q_cast: Array2<S> = q.mapv(Into::into);
             output.assign(&q_cast.dot(output));
         }
     }

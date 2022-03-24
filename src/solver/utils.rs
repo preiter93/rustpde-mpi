@@ -22,12 +22,13 @@ pub fn diag<T: LinalgScalar>(a: &Array2<T>, offset: i8) -> Array1<T> {
     );
     let n: usize = a.shape()[0];
     let m: usize = offset.abs().try_into().unwrap();
-    if m > n {
-        panic!(
-            "Size of Array must be larger than offset, got {} and {}.",
-            n, offset
-        );
-    }
+    assert!(
+        !(m > n),
+        "Size of Array must be larger than offset, got {} and {}.",
+        n,
+        offset
+    );
+
     let mut diag: Array1<T> = Array1::zeros(n - m);
     if offset >= 0 {
         for (i, d) in &mut diag.iter_mut().enumerate() {

@@ -135,7 +135,7 @@ where
         A::zero()
     };
     let mut nu_global = A::zero();
-    crate::mpi::all_gather_sum(&temp.space.get_universe(), &nu, &mut nu_global);
+    crate::mpi::all_gather_sum(temp.space.get_universe(), &nu, &mut nu_global);
     nu_global / two
 }
 

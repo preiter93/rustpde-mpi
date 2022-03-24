@@ -24,14 +24,14 @@ where
         // Scalar
         if self.nrank() == 0 {
             println!(" <== {:?}", filename);
-            self.time = read_scalar_from_hdf5::<f64>(&filename, "time")?;
+            self.time = read_scalar_from_hdf5::<f64>(filename, "time")?;
         }
         broadcast_scalar(self.universe, &mut self.time);
         // Field
-        self.ux.read(&filename, "ux")?;
-        self.uy.read(&filename, "uy")?;
-        self.temp.read(&filename, "temp")?;
-        self.pres.read(&filename, "pres")?;
+        self.ux.read(filename, "ux")?;
+        self.uy.read(filename, "uy")?;
+        self.temp.read(filename, "temp")?;
+        self.pres.read(filename, "pres")?;
         Ok(())
     }
 
@@ -54,19 +54,19 @@ where
         self.uy.backward_mpi();
         self.temp.backward_mpi();
         self.pres.backward_mpi();
-        self.ux.write(&filename, "ux")?;
-        self.uy.write(&filename, "uy")?;
-        self.temp.write(&filename, "temp")?;
-        self.pres.write(&filename, "pres")?;
+        self.ux.write(filename, "ux")?;
+        self.uy.write(filename, "uy")?;
+        self.temp.write(filename, "temp")?;
+        self.pres.write(filename, "pres")?;
         if let Some(field) = &self.tempbc {
-            field.write(&filename, "tempbc")?;
+            field.write(filename, "tempbc")?;
         }
         // Scalars
         if self.nrank() == 0 {
             // Write scalars
-            write_scalar_to_hdf5(&filename, "time", self.time)?;
+            write_scalar_to_hdf5(filename, "time", self.time)?;
             for (key, value) in &self.params {
-                write_scalar_to_hdf5(&filename, key, *value)?;
+                write_scalar_to_hdf5(filename, key, *value)?;
             }
         }
         Ok(())
@@ -104,12 +104,12 @@ where
         if let Some(dt_save) = &self.write_intervall {
             if (self.time + self.dt / 2.) % dt_save < self.dt {
                 // self.gather();
-                self.write_unwrap(&flow_name);
+                self.write_unwrap(flow_name);
             }
         } else {
             // TODO: Parallel writing, get rid of gather...
             // self.gather();
-            self.write_unwrap(&flow_name);
+            self.write_unwrap(flow_name);
         }
 
         // I/O

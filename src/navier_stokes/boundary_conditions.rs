@@ -1,9 +1,11 @@
 //! Collection of Boundary conditions
-use crate::bases::{cheb_dirichlet_bc, chebyshev, fourier_r2c};
+use crate::bases::{chebyshev, fourier_r2c};
 use crate::bases::{BaseR2c, BaseR2r};
 use crate::field::{Field2, Space2};
-use ndarray::{s, Array1, Array2};
+use ndarray::{Array1, Axis};
 use num_complex::Complex;
+use num_traits::Pow;
+use std::f64::consts::PI;
 
 type Space2R2r = Space2<BaseR2r<f64>, BaseR2r<f64>>;
 type Space2R2c = Space2<BaseR2c<f64>, BaseR2r<f64>>;
@@ -14,31 +16,28 @@ type Space2R2c = Space2<BaseR2c<f64>, BaseR2r<f64>>;
 /// T = 0.5 at the bottom and T = -0.5
 /// at the top
 pub fn bc_rbc(nx: usize, ny: usize) -> Field2<f64, Space2R2r> {
-    use crate::bases::Transform;
-    // Create base and field
-    let mut x_base = chebyshev(nx);
-    let y_base = cheb_dirichlet_bc(ny);
+    let x_base = chebyshev(nx);
+    let y_base = chebyshev(ny);
     let space = Space2::new(&x_base, &y_base);
     let mut fieldbc = Field2::new(&space);
-    let mut bc = fieldbc.vhat.to_owned();
 
-    // Set boundary condition along axis
-    bc.slice_mut(s![.., 0]).fill(0.5);
-    bc.slice_mut(s![.., 1]).fill(-0.5);
-
-    // Transform
-    x_base.forward_inplace(&bc, &mut fieldbc.vhat, 0);
-    fieldbc.backward();
+    let x = &fieldbc.x[1];
+    let (x1, x2) = (x[0], x[x.len() - 1]);
+    let (y1, y2) = (0.5, -0.5);
+    let m = (y2 - y1) / (x2 - x1);
+    let n = (y1 * x2 - y2 * x1) / (x2 - x1);
+    let profile = m * x + n;
+    for mut axis in fieldbc.v.axis_iter_mut(Axis(0)) {
+        axis.assign(&profile);
+    }
     fieldbc.forward();
+    fieldbc.backward();
     fieldbc
 }
 
 /// Return field for rayleigh benard
 /// type pressure boundary conditions:
 pub fn pres_bc_rbc(nx: usize, ny: usize) -> Field2<f64, Space2R2r> {
-    use ndarray::Axis;
-    use num_traits::Pow;
-
     /// Return a, b of a*x**2 + b*x
     /// from derivatives at the boundaries
     fn parabola_coeff(df_l: f64, df_r: f64, x: &Array1<f64>) -> (f64, f64) {
@@ -79,23 +78,18 @@ pub fn pres_bc_rbc(nx: usize, ny: usize) -> Field2<f64, Space2R2r> {
 ///
 /// * `k` - Transition parameter (larger means smoother)
 pub fn bc_zero(nx: usize, ny: usize, k: f64) -> Field2<f64, Space2R2r> {
-    use crate::bases::Transform;
-    // Create base and field
-    let x_base = cheb_dirichlet_bc(ny);
-    let mut y_base = chebyshev(nx);
+    let x_base = chebyshev(nx);
+    let y_base = chebyshev(ny);
     let space = Space2::new(&x_base, &y_base);
     let mut fieldbc = Field2::new(&space);
-    let mut bc = fieldbc.vhat.to_owned();
-    // Sidewall temp function
-    let transfer = transfer_function(&fieldbc.x[1], 0.5, 0., -0.5, k);
-    // Set boundary condition along axis
-    bc.slice_mut(s![0, ..]).assign(&transfer);
-    bc.slice_mut(s![1, ..]).assign(&transfer);
 
-    // Transform
-    y_base.forward_inplace(&bc, &mut fieldbc.vhat, 1);
-    fieldbc.backward();
+    // Sidewall temp function
+    let profile = transfer_function(&fieldbc.x[1], 0.5, 0., -0.5, k);
+    for mut axis in fieldbc.v.axis_iter_mut(Axis(0)) {
+        axis.assign(&profile);
+    }
     fieldbc.forward();
+    fieldbc.backward();
     fieldbc
 }
 
@@ -105,9 +99,6 @@ pub fn bc_zero(nx: usize, ny: usize, k: f64) -> Field2<f64, Space2R2r> {
 /// T = sin(2*pi/L * x) at the bottom
 /// and T = T' = 0 at the top
 pub fn bc_hc(nx: usize, ny: usize) -> Field2<f64, Space2R2r> {
-    use ndarray::Axis;
-    use std::f64::consts::PI;
-
     /// Return y = a(x-xs)**2 + ys, where xs and
     /// ys (=0) are the coordinates of the parabola.
     ///
@@ -150,22 +141,22 @@ pub fn bc_hc(nx: usize, ny: usize) -> Field2<f64, Space2R2r> {
 /// T = 0.5 at the bottom and T = -0.5
 /// at the top
 pub fn bc_rbc_periodic(nx: usize, ny: usize) -> Field2<Complex<f64>, Space2R2c> {
-    use crate::bases::Transform;
-    // Create base and field
-    let mut x_base = fourier_r2c(nx);
-    let y_base = cheb_dirichlet_bc(ny);
+    let x_base = fourier_r2c(nx);
+    let y_base = chebyshev(ny);
     let space = Space2::new(&x_base, &y_base);
     let mut fieldbc = Field2::new(&space);
-    let mut bc = Array2::<f64>::zeros((nx, 2));
 
-    // Set boundary condition along axis
-    bc.slice_mut(s![.., 0]).fill(0.5);
-    bc.slice_mut(s![.., 1]).fill(-0.5);
-
-    // Transform
-    x_base.forward_inplace(&bc, &mut fieldbc.vhat, 0);
-    fieldbc.backward();
+    let x = &fieldbc.x[1];
+    let (x1, x2) = (x[0], x[x.len() - 1]);
+    let (y1, y2) = (0.5, -0.5);
+    let m = (y2 - y1) / (x2 - x1);
+    let n = (y1 * x2 - y2 * x1) / (x2 - x1);
+    let profile = m * x + n;
+    for mut axis in fieldbc.v.axis_iter_mut(Axis(0)) {
+        axis.assign(&profile);
+    }
     fieldbc.forward();
+    fieldbc.backward();
     fieldbc
 }
 
@@ -175,9 +166,6 @@ pub fn bc_rbc_periodic(nx: usize, ny: usize) -> Field2<Complex<f64>, Space2R2c> 
 /// T = sin(2*pi/L * x) at the bottom
 /// and T = T' = 0 at the top
 pub fn bc_hc_periodic(nx: usize, ny: usize) -> Field2<Complex<f64>, Space2R2c> {
-    use ndarray::Axis;
-    use std::f64::consts::PI;
-
     /// Return y = a(x-xs)**2 + ys, where xs and
     /// ys (=0) are the coordinates of the parabola.
     ///
@@ -217,9 +205,6 @@ pub fn bc_hc_periodic(nx: usize, ny: usize) -> Field2<Complex<f64>, Space2R2c> {
 /// Return field for rayleigh benard
 /// type pressure boundary conditions:
 pub fn pres_bc_rbc_periodic(nx: usize, ny: usize) -> Field2<Complex<f64>, Space2R2c> {
-    use ndarray::Axis;
-    use num_traits::Pow;
-
     /// Return a, b of a*x**2 + b*x
     /// from derivatives at the boundaries
     fn parabola_coeff(df_l: f64, df_r: f64, x: &Array1<f64>) -> (f64, f64) {

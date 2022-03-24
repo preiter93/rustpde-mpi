@@ -36,6 +36,7 @@ use crate::solver::{
 };
 use ndarray::{Array2, ArrayBase, Data, DataMut, Ix2};
 use std::ops::{Add, Div, Mul};
+
 /// Container for `HholtzAdi`
 /// Solve with mpi support. Input must be x pencil distribution.
 #[derive(Clone)]

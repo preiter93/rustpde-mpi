@@ -27,7 +27,7 @@ where
         } else {
             // Axis is non contiguous
             let mut average_global = A::zero();
-            all_gather_sum(&self.space.get_universe(), &average, &mut average_global);
+            all_gather_sum(self.space.get_universe(), &average, &mut average_global);
             average_global
         }
     }
@@ -78,7 +78,7 @@ where
             avg[[]]
         } else {
             let mut avg_global = A::zero();
-            all_gather_sum(&self.space.get_universe(), &avg[[]], &mut avg_global);
+            all_gather_sum(self.space.get_universe(), &avg[[]], &mut avg_global);
             avg_global
         }
     }

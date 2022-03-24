@@ -156,7 +156,7 @@ where
     /// $$
     /// pseu: pseudo pressure ( in code it is pres\[1\] )
     pub(crate) fn solve_pres(&mut self, f: &Array2<T>) {
-        self.solver_pres.solve_par(&f, &mut self.pseu.vhat, 0);
+        self.solver_pres.solve_par(f, &mut self.pseu.vhat, 0);
         // Remove singularity
         self.pseu.vhat[[0, 0]] = T::zero();
     }

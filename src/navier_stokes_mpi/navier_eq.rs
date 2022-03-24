@@ -48,7 +48,7 @@ where
     fn div_norm(&mut self) -> f64 {
         let div = norm_l2_f64(&self.div()).powi(2);
         let mut div_global = 0.;
-        all_gather_sum(&self.universe, &div, &mut div_global);
+        all_gather_sum(self.universe, &div, &mut div_global);
         div_global.sqrt()
     }
 }
@@ -61,7 +61,7 @@ where
     fn div_norm(&mut self) -> f64 {
         let div = norm_l2_c64(&self.div()).powi(2);
         let mut div_global = 0.;
-        all_gather_sum(&self.universe, &div, &mut div_global);
+        all_gather_sum(self.universe, &div, &mut div_global);
         div_global.sqrt()
     }
 }
@@ -177,7 +177,7 @@ where
     /// $$
     /// pseu: pseudo pressure ( in code it is pres\[1\] )
     pub(crate) fn solve_pres(&mut self, f: &Array2<T>) {
-        self.solver_pres.solve(&f, &mut self.pseu.vhat_x_pen, 0);
+        self.solver_pres.solve(f, &mut self.pseu.vhat_x_pen, 0);
         // Remove singularity
         if self.nrank() == 0 {
             self.pseu.vhat_x_pen[[0, 0]] = T::zero();

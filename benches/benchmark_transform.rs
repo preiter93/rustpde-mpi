@@ -1,6 +1,7 @@
 use criterion::Criterion;
 use criterion::{criterion_group, criterion_main};
-use rustpde::*;
+use rustpde::bases::cheb_dirichlet;
+use rustpde::field::{Field2, Space2};
 
 const SIZES: [usize; 4] = [128, 264, 512, 1024];
 

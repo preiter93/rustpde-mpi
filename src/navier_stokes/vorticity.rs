@@ -38,13 +38,13 @@ use num_traits::Zero;
 /// # Errors
 /// Can't read file
 pub fn vorticity_from_file(fname: &str) -> Result<()> {
-    let nx = hdf5_get_size_dimension(&fname, "x")?;
-    let ny = hdf5_get_size_dimension(&fname, "y")?;
+    let nx = hdf5_get_size_dimension(fname, "x")?;
+    let ny = hdf5_get_size_dimension(fname, "y")?;
     let mut velx = Field2::new(&Space2::new(&cheb_dirichlet(nx), &cheb_dirichlet(ny)));
     let mut vely = Field2::new(&Space2::new(&cheb_dirichlet(nx), &cheb_dirichlet(ny)));
     let mut vorticity = Field2::new(&Space2::new(&chebyshev(nx), &chebyshev(ny)));
-    velx.read(&fname, "ux")?;
-    vely.read(&fname, "uy")?;
+    velx.read(fname, "ux")?;
+    vely.read(fname, "uy")?;
     let dudz = velx.gradient([0, 1], Some([1.0, 1.0]));
     let dvdx = vely.gradient([1, 0], Some([1.0, 1.0]));
     vorticity.vhat.assign(&(dvdx - dudz));
@@ -63,13 +63,13 @@ pub fn vorticity_from_file(fname: &str) -> Result<()> {
 /// # Errors
 /// Can't read file
 pub fn vorticity_from_file_periodic(fname: &str) -> Result<()> {
-    let nx = hdf5_get_size_dimension(&fname, "x")?;
-    let ny = hdf5_get_size_dimension(&fname, "y")?;
+    let nx = hdf5_get_size_dimension(fname, "x")?;
+    let ny = hdf5_get_size_dimension(fname, "y")?;
     let mut velx = Field2::new(&Space2::new(&fourier_r2c(nx), &cheb_dirichlet(ny)));
     let mut vely = Field2::new(&Space2::new(&fourier_r2c(nx), &cheb_dirichlet(ny)));
     let mut vorticity = Field2::new(&Space2::new(&fourier_r2c(nx), &chebyshev(ny)));
-    velx.read(&fname, "ux")?;
-    vely.read(&fname, "uy")?;
+    velx.read(fname, "ux")?;
+    vely.read(fname, "uy")?;
     let dudz = velx.gradient([0, 1], Some([1.0, 1.0]));
     let dvdx = vely.gradient([1, 0], Some([1.0, 1.0]));
     vorticity.vhat.assign(&(dvdx - dudz));

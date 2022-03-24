@@ -118,8 +118,8 @@ where
         conv += &conv_term(ux_mean, &self.temp, space, [1, 0], scale);
         conv += &conv_term(uy_mean, &self.temp, space, [0, 1], scale);
         // + ux * dtdx + uy * dtdy
-        conv += &conv_term(&velx, &self.temp, space, [1, 0], scale);
-        conv += &conv_term(&vely, &self.temp, space, [0, 1], scale);
+        conv += &conv_term(velx, &self.temp, space, [1, 0], scale);
+        conv += &conv_term(vely, &self.temp, space, [0, 1], scale);
         // + Ux * dTdx + Uy * dTdy
         conv += &conv_term(ux_mean, &self.mean.temp, space, [1, 0], scale);
         conv += &conv_term(uy_mean, &self.mean.temp, space, [0, 1], scale);
@@ -180,7 +180,7 @@ where
     /// $$
     /// pseu: pseudo pressure ( in code it is pres\[1\] )
     pub(crate) fn solve_pres(&mut self, f: &Array2<T>) {
-        self.solver_pres.solve_par(&f, &mut self.pseu.vhat, 0);
+        self.solver_pres.solve_par(f, &mut self.pseu.vhat, 0);
         // Remove singularity
         self.pseu.vhat[[0, 0]] = T::zero();
     }

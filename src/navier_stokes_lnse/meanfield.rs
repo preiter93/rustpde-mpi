@@ -240,16 +240,16 @@ where
         // are defined as orthogonal spaces
         self.velx
             .v
-            .assign(&read_from_hdf5::<f64, Ix2>(&filename, "ux/v")?);
+            .assign(&read_from_hdf5::<f64, Ix2>(filename, "ux/v")?);
         self.vely
             .v
-            .assign(&read_from_hdf5::<f64, Ix2>(&filename, "uy/v")?);
+            .assign(&read_from_hdf5::<f64, Ix2>(filename, "uy/v")?);
         self.temp
             .v
-            .assign(&read_from_hdf5::<f64, Ix2>(&filename, "temp/v")?);
+            .assign(&read_from_hdf5::<f64, Ix2>(filename, "temp/v")?);
         // Add bc if present
-        if let Ok(x) = read_from_hdf5::<f64, Ix2>(&filename, "tempbc/v") {
-            self.temp.v += &x
+        if let Ok(x) = read_from_hdf5::<f64, Ix2>(filename, "tempbc/v") {
+            self.temp.v += &x;
         }
         self.velx.forward();
         self.vely.forward();
@@ -274,9 +274,9 @@ where
         self.velx.backward();
         self.vely.backward();
         self.temp.backward();
-        self.velx.write(&filename, "ux")?;
-        self.vely.write(&filename, "uy")?;
-        self.temp.write(&filename, "temp")?;
+        self.velx.write(filename, "ux")?;
+        self.vely.write(filename, "uy")?;
+        self.temp.write(filename, "temp")?;
         Ok(())
     }
 
