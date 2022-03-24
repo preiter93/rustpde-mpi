@@ -140,7 +140,7 @@ version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9ff11ddd2af3b5e80dd0297fee6e56ac038d9bdc549573cdb51bd6d2efe7f05e"
 dependencies = [
- "num-complex 0.4.0",
+ "num-complex",
  "num-traits",
  "rand",
  "serde",
@@ -449,14 +449,18 @@ dependencies = [
 
 [[package]]
 name = "funspace"
-version = "0.3.1"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1acf60578d36ea1d12a19cb361ad6bf24a465bf9e8af1113f0808952f34db8ab"
 dependencies = [
  "enum_dispatch",
- "mpi-decomp",
+ "mpi-fork-fnsp",
  "ndarray",
- "ndrustfft",
- "num-complex 0.4.0",
+ "num-complex",
  "num-traits",
+ "realfft",
+ "rustdct",
+ "rustfft",
 ]
 
 [[package]]
@@ -648,7 +652,7 @@ checksum = "6a7f0050af10913bc5e4f6091df38870cb5d4e45094d3dd551c1aff9d1d59b26"
 dependencies = [
  "lapack-sys",
  "libc",
- "num-complex 0.4.0",
+ "num-complex",
 ]
 
 [[package]]
@@ -812,17 +816,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "mpi-decomp"
-version = "0.1.2"
-dependencies = [
- "mpi-fork-fnsp",
- "ndarray",
- "num-traits",
-]
-
-[[package]]
 name = "mpi-fork-fnsp"
 version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "871f429e747e2bbef02441c97199ac70c8465f02459650524907c7c78044cb7c"
 dependencies = [
  "bindgen",
  "build-probe-mpi",
@@ -830,7 +827,7 @@ dependencies = [
  "conv",
  "libffi",
  "memoffset",
- "num-complex 0.4.0",
+ "num-complex",
  "once_cell",
  "smallvec",
 ]
@@ -845,7 +842,7 @@ dependencies = [
  "cblas-sys",
  "libc",
  "matrixmultiply",
- "num-complex 0.4.0",
+ "num-complex",
  "num-integer",
  "num-traits",
  "rawpointer",
@@ -861,7 +858,7 @@ dependencies = [
  "cauchy",
  "lax",
  "ndarray",
- "num-complex 0.4.0",
+ "num-complex",
  "num-traits",
  "rand",
  "thiserror",
@@ -879,33 +876,12 @@ dependencies = [
 ]
 
 [[package]]
-name = "ndrustfft"
-version = "0.2.2"
-source = "git+https://github.com/preiter93/ndrustfft?tag=v0.2.2#bffb1fb996c1cc589431846ea74bd5d7da2503b3"
-dependencies = [
- "ndarray",
- "num-traits",
- "realfft",
- "rustdct",
- "rustfft 6.0.1",
-]
-
-[[package]]
 name = "nom"
 version = "3.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "05aec50c70fd288702bcd93284a8444607f3292dbdf2a30de5ea5dcdbe72287b"
 dependencies = [
  "memchr 1.0.2",
-]
-
-[[package]]
-name = "num-complex"
-version = "0.3.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "747d632c0c558b87dbabbe6a82f3b4ae03720d0646ac5b7b4dae89394be5f2c5"
-dependencies = [
- "num-traits",
 ]
 
 [[package]]
@@ -1194,11 +1170,11 @@ dependencies = [
 
 [[package]]
 name = "realfft"
-version = "2.0.1"
+version = "3.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d7695c87f31dc3644760f23fb59a3fed47659703abf76cf2d111f03b9e712342"
+checksum = "a83b876fe55da7e1bf5deeacb93d6411edf81eba0e1a497e79c067734729053a"
 dependencies = [
- "rustfft 6.0.1",
+ "rustfft",
 ]
 
 [[package]]
@@ -1276,25 +1252,11 @@ dependencies = [
 
 [[package]]
 name = "rustdct"
-version = "0.6.0"
+version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fadcb505b98aa64da1dadb1498b912e3642aae4606623cb3ae952cd8da33f80d"
+checksum = "620247053ace0eddd3e607c66423537e45c3ae36008e6d6fac1552f51ea1a63a"
 dependencies = [
- "rustfft 5.1.1",
-]
-
-[[package]]
-name = "rustfft"
-version = "5.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1869bb2a6ff77380d52ff4bc631f165637035a55855c76aa462c85474dadc42f"
-dependencies = [
- "num-complex 0.3.1",
- "num-integer",
- "num-traits",
- "primal-check",
- "strength_reduce",
- "transpose",
+ "rustfft",
 ]
 
 [[package]]
@@ -1303,7 +1265,7 @@ version = "6.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b1d089e5c57521629a59f5f39bca7434849ff89bd6873b521afe389c1c602543"
 dependencies = [
- "num-complex 0.4.0",
+ "num-complex",
  "num-integer",
  "num-traits",
  "primal-check",
@@ -1313,7 +1275,7 @@ dependencies = [
 
 [[package]]
 name = "rustpde"
-version = "0.2.7"
+version = "0.3.0"
 dependencies = [
  "criterion",
  "enum_dispatch",
@@ -1322,7 +1284,7 @@ dependencies = [
  "ndarray",
  "ndarray-linalg",
  "ndarray-rand",
- "num-complex 0.4.0",
+ "num-complex",
  "num-traits",
 ]
 

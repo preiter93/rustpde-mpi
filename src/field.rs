@@ -92,8 +92,10 @@ where
     /// Scale coordinates
     pub fn scale(&mut self, scale: [A; N]) {
         for (i, sc) in scale.iter().enumerate() {
-            self.x[i] *= *sc;
-            self.dx[i] *= *sc;
+            for (x, dx) in self.x[i].iter_mut().zip(self.dx[i].iter_mut()) {
+                *x *= *sc;
+                *dx *= *sc;
+            }
         }
     }
 
@@ -171,8 +173,6 @@ where
                 BaseKind::Chebyshev
                 | BaseKind::ChebDirichlet
                 | BaseKind::ChebNeumann
-                | BaseKind::ChebDirichletBc
-                | BaseKind::ChebNeumannBc
                 | BaseKind::ChebDirichletNeumann => false,
                 BaseKind::FourierR2c | BaseKind::FourierC2c => true,
                 // _ => panic!("Unknown Base kind: {}!", kind),
@@ -211,7 +211,7 @@ where
                 (pinv.dot(&mass), peye.dot(&mass), Some(pinv))
             }
             BaseKind::FourierR2c | BaseKind::FourierC2c => (mass, lap, None),
-            _ => panic!("No ingredients found for Base kind: {}!", kind),
+            // _ => panic!("No ingredients found for Base kind: {}!", kind),
         }
     }
 
@@ -242,7 +242,7 @@ where
             | BaseKind::ChebNeumann
             | BaseKind::ChebDirichletNeumann => false,
             BaseKind::FourierR2c | BaseKind::FourierC2c => true,
-            _ => panic!("No ingredients found for Base kind: {}!", kind),
+            // _ => panic!("No ingredients found for Base kind: {}!", kind),
         };
 
         (mat_a, mat_b, precond, is_diag)

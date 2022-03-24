@@ -1,15 +1,15 @@
 //! MPI Routines
-pub use funspace::mpi::all_gather_sum;
-pub use funspace::mpi::broadcast_scalar;
-pub use funspace::mpi::gather_sum;
-pub use funspace::mpi::initialize;
-pub use funspace::mpi::space_traits::BaseSpaceMpi;
-pub use funspace::mpi::AsRaw;
-pub use funspace::mpi::Communicator;
-pub use funspace::mpi::Decomp2d;
-pub use funspace::mpi::Equivalence;
-pub use funspace::mpi::Space2 as Space2Mpi;
-pub use funspace::mpi::Universe;
+pub use funspace::spaces_mpi::all_gather_sum;
+pub use funspace::spaces_mpi::broadcast_scalar;
+pub use funspace::spaces_mpi::gather_sum;
+pub use funspace::spaces_mpi::initialize;
+pub use funspace::spaces_mpi::traits::BaseSpaceMpi;
+pub use funspace::spaces_mpi::AsRaw;
+pub use funspace::spaces_mpi::Communicator;
+pub use funspace::spaces_mpi::Decomp2d;
+pub use funspace::spaces_mpi::Equivalence;
+pub use funspace::spaces_mpi::Space2 as Space2Mpi;
+pub use funspace::spaces_mpi::Universe;
 
 const MAX_TIMESTEP: usize = 10_000_000;
 

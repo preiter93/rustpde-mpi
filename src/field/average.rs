@@ -1,9 +1,9 @@
 //! Implementations of volumetric weight averages
 use super::{BaseSpace, FieldBase};
 use crate::types::FloatNum;
-use ndarray::prelude::*;
+use ndarray::{Array1, Array2, Axis, ScalarOperand, Zip};
 
-impl<A: FloatNum, T2, S> FieldBase<A, A, T2, S, 2>
+impl<A: FloatNum + ScalarOperand, T2, S> FieldBase<A, A, T2, S, 2>
 where
     S: BaseSpace<A, 2, Physical = A, Spectral = T2>,
 {
@@ -26,7 +26,7 @@ where
     pub fn average_axis(&self, axis: usize) -> Array1<A> {
         let mut weighted_avg = Array2::<A>::zeros(self.v.raw_dim());
         let length: A = (self.x[axis][self.x[axis].len() - 1] - self.x[axis][0]).abs();
-        ndarray::Zip::from(self.v.lanes(Axis(axis)))
+        Zip::from(self.v.lanes(Axis(axis)))
             .and(weighted_avg.lanes_mut(Axis(axis)))
             .for_each(|ref v, mut s| {
                 s.assign(&(v * &self.dx[axis] / length));

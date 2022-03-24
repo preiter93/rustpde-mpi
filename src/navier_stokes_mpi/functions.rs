@@ -107,7 +107,7 @@ pub fn eval_nu_mpi<A, T2, S>(
     scale: &[A; 2],
 ) -> A
 where
-    A: FloatNum + crate::mpi::Equivalence + std::iter::Sum,
+    A: FloatNum + crate::mpi::Equivalence + std::iter::Sum + ScalarOperand,
     Complex<A>: ScalarOperand,
     S: BaseSpace<A, 2, Physical = A, Spectral = T2>
         + BaseSpaceMpi<A, 2, Physical = A, Spectral = T2>,
@@ -152,7 +152,7 @@ pub fn eval_nuvol_mpi<A, T2, S>(
     scale: &[A; 2],
 ) -> A
 where
-    A: FloatNum + crate::mpi::Equivalence + std::iter::Sum,
+    A: FloatNum + crate::mpi::Equivalence + std::iter::Sum + ScalarOperand,
     Complex<A>: ScalarOperand,
     S: BaseSpace<A, 2, Physical = A, Spectral = T2>
         + BaseSpaceMpi<A, 2, Physical = A, Spectral = T2>,
@@ -191,7 +191,7 @@ pub fn eval_re_mpi<A, T2, S>(
     scale: &[A; 2],
 ) -> A
 where
-    A: FloatNum + crate::mpi::Equivalence + std::iter::Sum,
+    A: FloatNum + crate::mpi::Equivalence + std::iter::Sum + ScalarOperand,
     Complex<A>: ScalarOperand,
     S: BaseSpace<A, 2, Physical = A, Spectral = T2>
         + BaseSpaceMpi<A, 2, Physical = A, Spectral = T2>,

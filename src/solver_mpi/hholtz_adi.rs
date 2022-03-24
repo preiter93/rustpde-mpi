@@ -73,8 +73,7 @@ where
                 BaseKind::ChebDirichletNeumann => Solver::PdmaPlus2(PdmaPlus2::from_matrix(&mat)),
                 BaseKind::FourierR2c | BaseKind::FourierC2c => {
                     Solver::Sdma(Sdma::from_matrix(&mat))
-                }
-                _ => panic!("No solver found for Base kind: {}!", base_kind),
+                } // _ => panic!("No solver found for Base kind: {}!", base_kind),
             };
             let matvec_axis = precond.map(|x| MatVec::MatVecFdma(MatVecFdma::new(&x)));
 

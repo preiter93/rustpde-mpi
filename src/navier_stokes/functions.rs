@@ -150,7 +150,7 @@ pub fn eval_nu<A, T2, S>(
     scale: &[A; 2],
 ) -> A
 where
-    A: FloatNum,
+    A: FloatNum + ScalarOperand,
     Complex<A>: ScalarOperand,
     S: BaseSpace<A, 2, Physical = A, Spectral = T2>,
     T2: Scalar + Mul<A, Output = T2>,
@@ -180,7 +180,7 @@ pub fn eval_nuvol<A, T2, S>(
     scale: &[A; 2],
 ) -> A
 where
-    A: FloatNum,
+    A: FloatNum + ScalarOperand,
     Complex<A>: ScalarOperand,
     S: BaseSpace<A, 2, Physical = A, Spectral = T2>,
     T2: Scalar + Div<A, Output = T2>,
@@ -219,7 +219,7 @@ pub fn eval_re<A, T2, S>(
     scale: &[A; 2],
 ) -> A
 where
-    A: FloatNum,
+    A: FloatNum + ScalarOperand,
     Complex<A>: ScalarOperand,
     S: BaseSpace<A, 2, Physical = A, Spectral = T2>,
 {

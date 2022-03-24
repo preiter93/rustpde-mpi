@@ -1,13 +1,14 @@
 //! Implementations of volumetric weight averages
 use super::{BaseSpace, BaseSpaceMpi, FieldBaseMpi};
+use crate::mpi::all_gather_sum;
 use crate::mpi::Equivalence;
 use crate::types::FloatNum;
-use funspace::mpi::all_gather_sum;
-use ndarray::{s, Array1, ArrayBase, Axis, Data, Ix1};
+use ndarray::{s, Array1, ArrayBase, Axis, Data, Ix1, ScalarOperand};
+use std::iter::Sum;
 
 impl<A, T2, S> FieldBaseMpi<A, A, T2, S, 2>
 where
-    A: FloatNum + Equivalence + std::iter::Sum,
+    A: FloatNum + Equivalence + Sum + ScalarOperand,
     S: BaseSpace<A, 2, Physical = A, Spectral = T2> + BaseSpaceMpi<A, 2>,
 {
     /// Return volumetric weighted average along lane
