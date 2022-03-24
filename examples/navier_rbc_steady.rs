@@ -18,7 +18,7 @@ fn main() {
     // PROVIDE INITIAL FLOW FIELD!
     navier.read_unwrap("restart.h5");
     navier.reset_time();
-    integrate(&mut navier, 100, Some(1.0));
+    integrate(&mut navier, 100., Some(1.0));
 }
 
 // fn generate_restart_field() {
