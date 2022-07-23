@@ -3,14 +3,14 @@ import h5py
 import glob
 import re
 import matplotlib.pyplot as plt
-from utils.plot_utils import plot_contour
+# from utils.plot_utils import plot_contour
 from utils.plot_utils import plot_quiver
 import os.path
-import ffmpeg
 
 settings = {
     "duration": None,  # time in seconds; determines fps
     "filename": "data/out.mp4",
+    "dpi": 80,
 }
 
 # -- Get list of files
@@ -57,5 +57,5 @@ for i, f in enumerate(fname[i0:i9:step]):
     print("Plot {:}".format(filename))
     # fig, ax = plot_contour(x, y, t, return_fig=True)
     fig, ax = plot_quiver(x, y, t + tbc, u, v, return_fig=True)
-    fig.savefig(figname, dpi=200, bbox_inches="tight")
+    fig.savefig(figname, dpi=settings["dpi"], bbox_inches="tight")
     plt.close("all")

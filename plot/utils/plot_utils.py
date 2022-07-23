@@ -2,8 +2,13 @@ import numpy as np
 import matplotlib.pyplot as plt
 from utils.colors import *
 
+# SETTINGS = {
+#     "cmap": "gfcmap",
+#     "dpi": 200,
+# }
+
 SETTINGS = {
-    "cmap": "gfcmap",
+    "cmap": "RdBu_r",
     "dpi": 200,
 }
 

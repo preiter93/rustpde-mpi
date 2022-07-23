@@ -32,7 +32,9 @@ use std::ops::{Add, Div, Mul};
 /// Container for Poisson Solver
 #[derive(Clone)]
 pub struct Poisson<T, const N: usize> {
+    /// Poisson Solver
     pub solver: Box<FdmaTensor<T, N>>,
+    ///Matrix-Vector product for preprocessing
     pub matvec: Vec<Option<MatVec<T>>>,
 }
 

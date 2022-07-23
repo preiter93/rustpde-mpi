@@ -38,19 +38,17 @@ fn main() {
     use rustpde::integrate;
     use rustpde::navier_stokes::Navier2D;
     // Parameters
-    let (nx, ny) = (1025, 1025);
-    let ra = 1e4;
-    let pr = 1.;
-    let aspect = 1.0;
-    let dt = 0.01;
-    let max_time = 1.;
+    let (nx, ny) = (129, 129);
+    let (ra, pr, aspect) = (1e7, 1., 1.);
+    let dt = 2e-3;
+    let max_time = 100.;
     let mut navier = Navier2D::new_confined(nx, ny, ra, pr, dt, aspect, "rbc");
     navier.init_random(1e-2);
     // navier.read_unwrap("restart.h5");
     // navier.reset_time();
     let now = std::time::Instant::now();
     println!("Start");
-    integrate(&mut navier, max_time, Some(max_time));
+    integrate(&mut navier, max_time, Some(0.2));
     println!("Time elapsed: {:?}", now.elapsed());
     let iteration = max_time / dt;
     println!(
