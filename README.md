@@ -73,6 +73,9 @@ see [`navier_stokes::Navier2D`] or  [`navier_stokes_mpi::Navier2DMpi`]
 
 ## Example
 Solve 2-D Rayleigh Benard Convection ( Run with `cargo mpirun --np 2 --bin rustpde` )
+
+![Alt text](https://github.com/preiter93/rustpde-mpi/blob/master/examples/rbc.gif?raw=true)
+
 ```rust
 use rustpde::mpi::initialize;
 use rustpde::mpi::integrate;
@@ -90,9 +93,8 @@ fn main() {
     integrate(&mut navier, 10., Some(0.1));
 }
 
-![Alt text](https://github.com/preiter93/rustpde-mpi/blob/main/examples/rbc.gif?raw=true)
-
 ```
+
 Solve 2-D Rayleigh Benard Convection with periodic sidewall
 ```rust
 use rustpde::mpi::initialize;
